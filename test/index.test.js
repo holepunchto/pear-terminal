@@ -489,7 +489,7 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   }
 
   let logOutput = ''
-  const log = (msg) => { logOutput += msg + '\n'}
+  const log = (msg) => { logOutput += msg + '\n' }
 
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false, log }, testData)

@@ -462,7 +462,7 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   })
   t.teardown(restoreTTY)
 
-  const { outputter } = require('..')
+  const { outputter, ansi } = require('..')
   t.teardown(() => { Helper.forget('..') })
 
   let output = ''
@@ -494,7 +494,7 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false, log }, testData)
 
-  t.is(ttyOutput, '', 'should not print to console when log is specified')
+  t.is(ttyOutput.replace(ansi.hideCursor(), '').replace(ansi.showCursor(), ''), '', 'should not print any text output to tty')
   t.is(output, '', 'should not print using console.log when log is specified')
   t.ok(logOutput.includes('Processing files...'), 'should use log for normal messages')
   t.ok(logOutput.includes('a\nb\nc\nArray'), 'should handle array message correctly')

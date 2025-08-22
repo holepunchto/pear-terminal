@@ -229,17 +229,15 @@ function indicator (value, type = 'success') {
 const outputter = (cmd, taggers = {}) => (opts, stream, info = {}, ipc) => {
   if (Array.isArray(stream)) stream = Readable.from(stream)
   const asTTY = opts.ctrlTTY ?? isTTY
-  if (typeof opts === 'boolean') opts = { json: opts }
-  const { json = false, log } = opts
-
-  if (asTTY && !log) stdio.out.write(ansi.hideCursor())
+  if (asTTY) stdio.out.write(ansi.hideCursor())
   const dereg = asTTY
     ? gracedown(() => {
       if (!isWindows) stdio.out.write('\x1B[1K\x1B[G' + statusFrag) // clear ^C
-      if (!log) stdio.out.write(ansi.showCursor())
+      stdio.out.write(ansi.showCursor())
     })
     : null
-
+  if (typeof opts === 'boolean') opts = { json: opts }
+  const { json = false, log } = opts
   const promise = opwait(stream, ({ tag, data }) => {
     if (json) {
       const str = JSON.stringify({ cmd, tag, data })
@@ -274,7 +272,7 @@ const outputter = (cmd, taggers = {}) => (opts, stream, info = {}, ipc) => {
   return !asTTY
     ? promise
     : promise.finally(() => {
-      if (!log) stdio.out.write(ansi.showCursor())
+      stdio.out.write(ansi.showCursor())
       dereg(false)
     })
 }

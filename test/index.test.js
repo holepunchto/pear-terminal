@@ -82,7 +82,7 @@ test('print function', testOptions, async function (t) {
 
   const originalConsoleLog = console.log
   let output = ''
-  console.log = (str) => { output += str }
+  console.log = (str) => { output += str + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   print('Test message', true)
@@ -225,7 +225,7 @@ test('permit function with unencrypted key', testOptions, async function (t) {
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (str) => { output += str }
+  console.log = (str) => { output += str + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const mockKey = hypercoreid.decode('d47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221')
@@ -285,7 +285,7 @@ test('permit function with encrypted key', testOptions, async function (t) {
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (str) => { output += str }
+  console.log = (str) => { output += str + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const mockKey = hypercoreid.decode('d47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221')
@@ -382,7 +382,7 @@ test('outputter - JSON mode - with log', testOptions, async function (t) {
 
   let capturedOutput = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg }
+  console.log = (msg) => { capturedOutput += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const logOutput = []
@@ -513,7 +513,7 @@ test('byteDiff function', testOptions, async function (t) {
 
   const originalConsoleLog = console.log
   let output = ''
-  console.log = (msg) => { output += msg }
+  console.log = (msg) => { output += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const { byteDiff } = require('..')

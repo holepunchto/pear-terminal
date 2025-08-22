@@ -358,15 +358,15 @@ test('outputter - JSON mode', testOptions, async function (t) {
 
   const mockData = [{ tag: 'test', data: 'Test output' }]
 
-  let capturedOutput = ''
+  let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg + '\n' }
+  console.log = (msg) => { output += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const outputterFn = outputter('test-cmd')
   await outputterFn({ json: true }, mockData)
 
-  t.ok(capturedOutput.includes('"data":"Test output"'), 'should print JSON when in JSON mode')
+  t.ok(output.includes('"data":"Test output"'), 'should print JSON when in JSON mode')
 })
 
 test('outputter - JSON mode - with log', testOptions, async function (t) {
@@ -380,9 +380,9 @@ test('outputter - JSON mode - with log', testOptions, async function (t) {
 
   const mockData = [{ tag: 'test', data: 'Test output' }]
 
-  let capturedOutput = ''
+  let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg + '\n' }
+  console.log = (msg) => { output += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const logOutput = []
@@ -391,7 +391,7 @@ test('outputter - JSON mode - with log', testOptions, async function (t) {
   const outputterFn = outputter('test-cmd')
   await outputterFn({ json: true, log }, mockData)
 
-  t.is(capturedOutput, '', 'should not print to console')
+  t.is(output, '', 'should not print to console')
   t.ok(logOutput.length > 0, 'should use log function when provided in json mode')
   t.ok(logOutput[0].includes('"data":"Test output"'), 'should contain JSON output in log')
 })
@@ -402,10 +402,10 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
   const { teardown } = rig()
   t.teardown(teardown)
 
-  let statusOutput = ''
+  let ttyOutput = ''
   const restoreTTY = Helper.override('bare-tty', {
     isTTY: () => true,
-    WriteStream: class { write = (str) => { statusOutput += str } },
+    WriteStream: class { write = (str) => { ttyOutput += str } },
     ReadStream: class extends Readable { setMode = () => {} }
   })
   t.teardown(restoreTTY)
@@ -413,9 +413,9 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
   const { outputter } = require('..')
   t.teardown(() => { Helper.forget('..') })
 
-  let capturedOutput = ''
+  let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg + '\n' }
+  console.log = (msg) => { output += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const testData = [
@@ -439,13 +439,13 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false }, testData)
 
-  t.ok(capturedOutput.includes('Processing files...'), 'should use taggers')
-  t.ok(capturedOutput.includes('a\nb\nc\nArray'), 'should handle array message correctly')
-  t.ok(statusOutput.includes('Loading...'), 'should use taggers for status messages')
-  t.ok(capturedOutput.includes('Received: Hello World'), 'should use taggers for transform message tag')
-  t.ok(capturedOutput.includes('Success'), 'should handle final tag with success message')
-  t.ok(!capturedOutput.includes('invalid'), 'should ignore invalid tags')
-  t.ok(capturedOutput.includes('Operation completed'), 'should handle success result')
+  t.ok(output.includes('Processing files...'), 'should use taggers')
+  t.ok(output.includes('a\nb\nc\nArray'), 'should handle array message correctly')
+  t.ok(ttyOutput.includes('Loading...'), 'should use taggers for status messages')
+  t.ok(output.includes('Received: Hello World'), 'should use taggers for transform message tag')
+  t.ok(output.includes('Success'), 'should handle final tag with success message')
+  t.ok(!output.includes('invalid'), 'should ignore invalid tags')
+  t.ok(output.includes('Operation completed'), 'should handle success result')
 })
 
 test('outputter - non-JSON mode - with log', testOptions, async function (t) {
@@ -454,10 +454,10 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   const { teardown } = rig()
   t.teardown(teardown)
 
-  let statusOutput = ''
+  let ttyOutput = ''
   const restoreTTY = Helper.override('bare-tty', {
     isTTY: () => true,
-    WriteStream: class { write = (str) => { statusOutput += str } },
+    WriteStream: class { write = (str) => { ttyOutput += str } },
     ReadStream: class extends Readable { setMode = () => {} }
   })
   t.teardown(restoreTTY)
@@ -465,9 +465,9 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   const { outputter } = require('..')
   t.teardown(() => { Helper.forget('..') })
 
-  let capturedOutput = ''
+  let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg + '\n' }
+  console.log = (msg) => { output += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const testData = [
@@ -494,8 +494,8 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false, log }, testData)
 
-  t.is(statusOutput, '', 'should not print to console when log is specified')
-  t.is(capturedOutput, '', 'should not print using console.log when log is specified')
+  t.is(ttyOutput, '', 'should not print to console when log is specified')
+  t.is(output, '', 'should not print using console.log when log is specified')
   t.ok(logOutput.includes('Processing files...'), 'should use log for messages')
   t.ok(logOutput.includes('a\nb\nc\nArray'), 'should handle array message correctly')
   t.ok(logOutput.includes('Loading...'), 'should use log for status message')

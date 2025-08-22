@@ -498,3 +498,30 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   t.ok(!logOutput.includes('invalid'), 'should ignore invalid tags')
   t.ok(logOutput.includes('Operation completed'), 'should handle success result')
 })
+
+test('byteDiff function', testOptions, async function (t) {
+  t.plan(3)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  const originalConsoleLog = console.log
+  let output = ''
+  console.log = (msg) => { output += msg }
+  t.teardown(() => { console.log = originalConsoleLog })
+
+  const { byteDiff } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  output = ''
+  byteDiff({ type: 1, sizes: [1024, 2048], message: 'Files added' })
+  t.ok(output.includes('Files added') && output.includes('(+1kB, +2kB)'), 'should support added files')
+
+  output = ''
+  byteDiff({ type: -1, sizes: [-512, -1024], message: 'Files removed' })
+  t.ok(output.includes('Files removed') && output.includes('(-512B, -1kB)'), 'should support removed files')
+
+  output = ''
+  byteDiff({ type: 0, sizes: [1024, -512, 0], message: 'Files changed' })
+  t.ok(output.includes('Files changed') && output.includes('(+1kB, -512B, 0B)'), 'should support changed files')
+})

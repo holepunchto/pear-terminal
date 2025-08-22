@@ -314,9 +314,39 @@ test('permit function with encrypted key', testOptions, async function (t) {
   t.is(exitedRes, true, 'Pear.exit ok')
 })
 
-// TODO: test masked
-// TODO: test non-tty
-// TODO: test autosubmit
+test('Interact - autosubmit', testOptions, async function (t) {
+  t.plan(3)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  let readlineCalled = false
+  const mockCreateInterface = () => ({
+    _prompt: '',
+    once: (event, callback) => { readlineCalled = true; callback(Buffer.from('')) },
+    on: () => {},
+    input: { setMode: () => {} },
+    close: () => {}
+  })
+  const restoreReadLine = Helper.override('bare-readline', { createInterface: mockCreateInterface })
+  t.teardown(restoreReadLine)
+
+  const { Interact } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  const mockCmd = 'run'
+
+  const interact = new Interact(mockCmd, [
+    { name: 'username', default: 'defaultuser', shave: [0] },
+    { name: 'password', default: 'defaultpass', secret: true }
+  ])
+
+  const { fields } = await interact.run({ autosubmit: true })
+  t.is(readlineCalled, false, 'should not call readline when doing autosubmit')
+  t.is(fields.username, 'defaultuser', 'should use default value for username')
+  t.is(fields.password, 'defaultpass', 'should use default value for password')
+})
+
 test('outputter - JSON mode', testOptions, async function (t) {
   t.plan(1)
 

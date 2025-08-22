@@ -407,8 +407,6 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false }, testData)
 
-  console.debug(capturedOutput)
-
   t.ok(capturedOutput.includes('Processing files...'), 'should use taggers')
   t.ok(statusOutput.includes('Loading...'), 'should use taggers for status messages')
   t.ok(capturedOutput.includes('Received: Hello World'), 'should use taggers for transform message tag')

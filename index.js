@@ -235,7 +235,7 @@ const outputter = (cmd, taggers = {}) => (opts, stream, info = {}, ipc) => {
   if (asTTY && !log) stdio.out.write(ansi.hideCursor())
   const dereg = asTTY
     ? gracedown(() => {
-      if (!isWindows) stdio.out.write('\x1B[1K\x1B[G' + statusFrag) // clear ^C
+      if (!isWindows && !log) stdio.out.write('\x1B[1K\x1B[G' + statusFrag) // clear ^C
       if (!log) stdio.out.write(ansi.showCursor())
     })
     : null

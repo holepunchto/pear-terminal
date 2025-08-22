@@ -360,7 +360,7 @@ test('outputter - JSON mode', testOptions, async function (t) {
 
   let capturedOutput = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg }
+  console.log = (msg) => { capturedOutput += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const outputterFn = outputter('test-cmd')
@@ -397,7 +397,7 @@ test('outputter - JSON mode - with log', testOptions, async function (t) {
 })
 
 test('outputter - non-JSON mode', testOptions, async function (t) {
-  t.plan(6)
+  t.plan(7)
 
   const { teardown } = rig()
   t.teardown(teardown)
@@ -415,11 +415,12 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
 
   let capturedOutput = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg }
+  console.log = (msg) => { capturedOutput += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const testData = [
     { tag: 'info', data: 'Processing files...' },
+    { tag: 'arr', data: 'Array' },
     { tag: 'status', data: 'Loading...' },
     { tag: 'message', data: 'Hello World' },
     { tag: 'final', data: { success: true } },
@@ -429,6 +430,7 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
 
   const taggers = {
     info: (data) => ({ output: 'print', message: data }),
+    arr: (data) => ({ output: 'print', message: ['a', 'b', 'c', data] }),
     status: (data) => ({ output: 'status', message: data }),
     message: (data) => `Received: ${data}`,
     result: (data) => ({ output: 'print', message: data.message, success: data.success })
@@ -438,6 +440,7 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
   await outputterFn({ json: false }, testData)
 
   t.ok(capturedOutput.includes('Processing files...'), 'should use taggers')
+  t.ok(capturedOutput.includes('a\nb\nc\nArray'), 'should handle array message correctly')
   t.ok(statusOutput.includes('Loading...'), 'should use taggers for status messages')
   t.ok(capturedOutput.includes('Received: Hello World'), 'should use taggers for transform message tag')
   t.ok(capturedOutput.includes('Success'), 'should handle final tag with success message')
@@ -446,7 +449,7 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
 })
 
 test('outputter - non-JSON mode - with log', testOptions, async function (t) {
-  t.plan(8)
+  t.plan(9)
 
   const { teardown } = rig()
   t.teardown(teardown)
@@ -464,11 +467,12 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
 
   let capturedOutput = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { capturedOutput += msg }
+  console.log = (msg) => { capturedOutput += msg + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const testData = [
     { tag: 'info', data: 'Processing files...' },
+    { tag: 'arr', data: 'Array' },
     { tag: 'status', data: 'Loading...' },
     { tag: 'message', data: 'Hello World' },
     { tag: 'final', data: { success: true } },
@@ -478,13 +482,14 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
 
   const taggers = {
     info: (data) => ({ output: 'print', message: data }),
+    arr: (data) => ({ output: 'print', message: ['a', 'b', 'c', data] }),
     status: (data) => ({ output: 'status', message: data }),
     message: (data) => `Received: ${data}`,
     result: (data) => ({ output: 'print', message: data.message, success: data.success })
   }
 
   let logOutput = ''
-  const log = (msg) => { logOutput += msg }
+  const log = (msg) => { logOutput += msg + '\n'}
 
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false, log }, testData)
@@ -492,6 +497,7 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   t.is(statusOutput, '', 'should not print to console when log is specified')
   t.is(capturedOutput, '', 'should not print using console.log when log is specified')
   t.ok(logOutput.includes('Processing files...'), 'should use log for messages')
+  t.ok(logOutput.includes('a\nb\nc\nArray'), 'should handle array message correctly')
   t.ok(logOutput.includes('Loading...'), 'should use log for status message')
   t.ok(logOutput.includes('Received: Hello World'), 'should use log for message tag')
   t.ok(logOutput.includes('Success'), 'should use log for final tag')

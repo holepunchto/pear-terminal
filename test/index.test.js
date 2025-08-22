@@ -82,7 +82,7 @@ test('print function', testOptions, async function (t) {
 
   const originalConsoleLog = console.log
   let output = ''
-  console.log = (str) => { output += str }
+  console.log = (str) => { output += str + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   print('Test message', true)
@@ -225,7 +225,7 @@ test('permit function with unencrypted key', testOptions, async function (t) {
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (str) => { output += str }
+  console.log = (str) => { output += str + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const mockKey = hypercoreid.decode('d47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221')
@@ -285,7 +285,7 @@ test('permit function with encrypted key', testOptions, async function (t) {
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (str) => { output += str }
+  console.log = (str) => { output += str + '\n' }
   t.teardown(() => { console.log = originalConsoleLog })
 
   const mockKey = hypercoreid.decode('d47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221')
@@ -312,4 +312,222 @@ test('permit function with encrypted key', testOptions, async function (t) {
 
   const exitedRes = await exited
   t.is(exitedRes, true, 'Pear.exit ok')
+})
+
+test('Interact - autosubmit', testOptions, async function (t) {
+  t.plan(3)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  let readlineCalled = false
+  const mockCreateInterface = () => ({
+    _prompt: '',
+    once: (event, callback) => { readlineCalled = true; callback(Buffer.from('')) },
+    on: () => {},
+    input: { setMode: () => {} },
+    close: () => {}
+  })
+  const restoreReadLine = Helper.override('bare-readline', { createInterface: mockCreateInterface })
+  t.teardown(restoreReadLine)
+
+  const { Interact } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  const mockCmd = 'run'
+
+  const interact = new Interact(mockCmd, [
+    { name: 'username', default: 'defaultuser', shave: [0] },
+    { name: 'password', default: 'defaultpass', secret: true }
+  ])
+
+  const { fields } = await interact.run({ autosubmit: true })
+  t.is(readlineCalled, false, 'should not call readline when doing autosubmit')
+  t.is(fields.username, 'defaultuser', 'should use default value for username')
+  t.is(fields.password, 'defaultpass', 'should use default value for password')
+})
+
+test('outputter - JSON mode', testOptions, async function (t) {
+  t.plan(1)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  const { outputter } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  const mockData = [{ tag: 'test', data: 'Test output' }]
+
+  let output = ''
+  const originalConsoleLog = console.log
+  console.log = (msg) => { output += msg + '\n' }
+  t.teardown(() => { console.log = originalConsoleLog })
+
+  const outputterFn = outputter('test-cmd')
+  await outputterFn({ json: true }, mockData)
+
+  t.ok(output.includes('"data":"Test output"'), 'should print JSON when in JSON mode')
+})
+
+test('outputter - JSON mode - with log', testOptions, async function (t) {
+  t.plan(3)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  const { outputter } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  const mockData = [{ tag: 'test', data: 'Test output' }]
+
+  let output = ''
+  const originalConsoleLog = console.log
+  console.log = (msg) => { output += msg + '\n' }
+  t.teardown(() => { console.log = originalConsoleLog })
+
+  const logOutput = []
+  const log = (msg) => { logOutput.push(msg) }
+
+  const outputterFn = outputter('test-cmd')
+  await outputterFn({ json: true, log }, mockData)
+
+  t.is(output, '', 'should not print to console')
+  t.ok(logOutput.length > 0, 'should use log function when provided in json mode')
+  t.ok(logOutput[0].includes('"data":"Test output"'), 'should contain JSON output in log')
+})
+
+test('outputter - non-JSON mode', testOptions, async function (t) {
+  t.plan(7)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  let ttyOutput = ''
+  const restoreTTY = Helper.override('bare-tty', {
+    isTTY: () => true,
+    WriteStream: class { write = (str) => { ttyOutput += str } },
+    ReadStream: class extends Readable { setMode = () => {} }
+  })
+  t.teardown(restoreTTY)
+
+  const { outputter } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  let output = ''
+  const originalConsoleLog = console.log
+  console.log = (msg) => { output += msg + '\n' }
+  t.teardown(() => { console.log = originalConsoleLog })
+
+  const testData = [
+    { tag: 'info', data: 'Processing files...' },
+    { tag: 'arr', data: 'Array' },
+    { tag: 'status', data: 'Loading...' },
+    { tag: 'message', data: 'Hello World' },
+    { tag: 'final', data: { success: true } },
+    { tag: 'invalid', data: {} },
+    { tag: 'result', data: { success: true, message: 'Operation completed' } }
+  ]
+
+  const taggers = {
+    info: (data) => ({ output: 'print', message: data }),
+    arr: (data) => ({ output: 'print', message: ['a', 'b', 'c', data] }),
+    status: (data) => ({ output: 'status', message: data }),
+    message: (data) => `Received: ${data}`,
+    result: (data) => ({ output: 'print', message: data.message, success: data.success })
+  }
+
+  const outputterFn = outputter('test-cmd', taggers)
+  await outputterFn({ json: false }, testData)
+
+  t.ok(output.includes('Processing files...'), 'should output normal messages')
+  t.ok(output.includes('a\nb\nc\nArray'), 'should handle array message correctly')
+  t.ok(ttyOutput.includes('Loading...'), 'should output status messages')
+  t.ok(output.includes('Received: Hello World'), 'should transform message')
+  t.ok(output.includes('Success'), 'should handle final tag with success message')
+  t.ok(!output.includes('invalid'), 'should ignore invalid tags')
+  t.ok(output.includes('Operation completed'), 'should handle success result')
+})
+
+test('outputter - non-JSON mode - with log', testOptions, async function (t) {
+  t.plan(9)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  let ttyOutput = ''
+  const restoreTTY = Helper.override('bare-tty', {
+    isTTY: () => true,
+    WriteStream: class { write = (str) => { ttyOutput += str } },
+    ReadStream: class extends Readable { setMode = () => {} }
+  })
+  t.teardown(restoreTTY)
+
+  const { outputter, ansi } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  let output = ''
+  const originalConsoleLog = console.log
+  console.log = (msg) => { output += msg + '\n' }
+  t.teardown(() => { console.log = originalConsoleLog })
+
+  const testData = [
+    { tag: 'info', data: 'Processing files...' },
+    { tag: 'arr', data: 'Array' },
+    { tag: 'status', data: 'Loading...' },
+    { tag: 'message', data: 'Hello World' },
+    { tag: 'final', data: { success: true } },
+    { tag: 'invalid', data: {} },
+    { tag: 'result', data: { success: true, message: 'Operation completed' } }
+  ]
+
+  const taggers = {
+    info: (data) => ({ output: 'print', message: data }),
+    arr: (data) => ({ output: 'print', message: ['a', 'b', 'c', data] }),
+    status: (data) => ({ output: 'status', message: data }),
+    message: (data) => `Received: ${data}`,
+    result: (data) => ({ output: 'print', message: data.message, success: data.success })
+  }
+
+  let logOutput = ''
+  const log = (msg) => { logOutput += msg + '\n' }
+
+  const outputterFn = outputter('test-cmd', taggers)
+  await outputterFn({ json: false, log }, testData)
+
+  t.is(ttyOutput.replace(ansi.hideCursor(), '').replace(ansi.showCursor(), ''), '', 'should not print any text output to tty')
+  t.is(output, '', 'should not print using console.log when log is specified')
+  t.ok(logOutput.includes('Processing files...'), 'should use log for normal messages')
+  t.ok(logOutput.includes('a\nb\nc\nArray'), 'should handle array message correctly')
+  t.ok(logOutput.includes('Loading...'), 'should use log for status message')
+  t.ok(logOutput.includes('Received: Hello World'), 'should use log for transformed messages')
+  t.ok(logOutput.includes('Success'), 'should use log for final tag')
+  t.ok(!logOutput.includes('invalid'), 'should ignore invalid tags')
+  t.ok(logOutput.includes('Operation completed'), 'should handle success result')
+})
+
+test('byteDiff function', testOptions, async function (t) {
+  t.plan(3)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  const originalConsoleLog = console.log
+  let output = ''
+  console.log = (msg) => { output += msg + '\n' }
+  t.teardown(() => { console.log = originalConsoleLog })
+
+  const { byteDiff } = require('..')
+  t.teardown(() => { Helper.forget('..') })
+
+  output = ''
+  byteDiff({ type: 1, sizes: [1024, 2048], message: 'Files added' })
+  t.ok(output.includes('Files added') && output.includes('(+1kB, +2kB)'), 'should support added files')
+
+  output = ''
+  byteDiff({ type: -1, sizes: [-512, -1024], message: 'Files removed' })
+  t.ok(output.includes('Files removed') && output.includes('(-512B, -1kB)'), 'should support removed files')
+
+  output = ''
+  byteDiff({ type: 0, sizes: [1024, -512, 0], message: 'Files changed' })
+  t.ok(output.includes('Files changed') && output.includes('(+1kB, -512B, 0B)'), 'should support changed files')
 })

@@ -7,16 +7,18 @@
   "license": "Apache-2.0",
   "files": [],
   "scripts": {
+    "format": "prettier --write .",
+    "lint": "prettier --check .",
     "test:gen": "brittle -r test/all.js test/*.test.js",
-    "test": "brittle-bare --coverage test/all.js",
-    "lint": "standard"
+    "test": "brittle-bare --coverage test/all.js"
   },
   "devDependencies": {
     "bare-module": "^5.0.2",
     "bare-os": "^3.6.1",
     "brittle": "^3.0.0",
     "pear-ipc": "^5.5.0",
-    "standard": "^17.1.2"
+    "prettier": "^3.6.2",
+    "prettier-config-holepunch": "^1.0.0"
   },
   "dependencies": {
     "bare-events": "^2.6.1",

@@ -1,6 +1,6 @@
 {
   "name": "pear-terminal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "index.js",
   "type": "commonjs",
   "description": "Pear Terminal User Interface library",

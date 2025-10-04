@@ -13,7 +13,8 @@ const dirname = __dirname
 global.Pear = null
 
 const rig = () => {
-  if (global.Pear !== null) throw Error(`Prior Pear global not cleaned up: ${global.Pear}`)
+  if (global.Pear !== null)
+    throw Error(`Prior Pear global not cleaned up: ${global.Pear}`)
 
   class RigAPI {
     static RTI = { checkout: { key: dirname, length: null, fork: null } }
@@ -21,7 +22,9 @@ const rig = () => {
   global.Pear = new RigAPI()
 
   return {
-    teardown: () => { global.Pear = null }
+    teardown: () => {
+      global.Pear = null
+    }
   }
 }
 
@@ -32,14 +35,40 @@ test('indicator function', testOptions, async function (t) {
   t.teardown(teardown)
 
   const { indicator, ansi } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
-  t.is(indicator(true), ansi.tick + ' ', 'indicator should return tick for true')
-  t.is(indicator(false), ansi.cross + ' ', 'indicator should return cross for false')
-  t.is(indicator(null), ansi.gray('- '), 'indicator should return gray dash for null')
-  t.is(indicator(1), ansi.tick + ' ', 'indicator should return tick for positive number')
-  t.is(indicator(-1), ansi.cross + ' ', 'indicator should return cross for negative number')
-  t.is(indicator(0), ansi.gray('- '), 'indicator should return gray dash for zero')
+  t.is(
+    indicator(true),
+    ansi.tick + ' ',
+    'indicator should return tick for true'
+  )
+  t.is(
+    indicator(false),
+    ansi.cross + ' ',
+    'indicator should return cross for false'
+  )
+  t.is(
+    indicator(null),
+    ansi.gray('- '),
+    'indicator should return gray dash for null'
+  )
+  t.is(
+    indicator(1),
+    ansi.tick + ' ',
+    'indicator should return tick for positive number'
+  )
+  t.is(
+    indicator(-1),
+    ansi.cross + ' ',
+    'indicator should return cross for negative number'
+  )
+  t.is(
+    indicator(0),
+    ansi.gray('- '),
+    'indicator should return gray dash for zero'
+  )
 })
 
 test('status function', testOptions, async function (t) {
@@ -51,24 +80,41 @@ test('status function', testOptions, async function (t) {
   let output = ''
   const restoreTTY = Helper.override('bare-tty', {
     isTTY: () => true,
-    WriteStream: class { write = (str) => { output += str } },
-    ReadStream: class extends Readable { setMode = () => {} }
+    WriteStream: class {
+      write = (str) => {
+        output += str
+      }
+    },
+    ReadStream: class extends Readable {
+      setMode = () => {}
+    }
   })
   t.teardown(restoreTTY)
 
   const { status, ansi } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   status('Test message', true)
-  t.ok(output.includes(ansi.tick + ' Test message'), 'status should print success message correctly')
+  t.ok(
+    output.includes(ansi.tick + ' Test message'),
+    'status should print success message correctly'
+  )
 
   output = ''
   status('Test message', false)
-  t.ok(output.includes(ansi.cross + ' Test message'), 'status should print failure message correctly')
+  t.ok(
+    output.includes(ansi.cross + ' Test message'),
+    'status should print failure message correctly'
+  )
 
   output = ''
   status('Test message')
-  t.ok(output.includes('Test message'), 'status should print message without success indicator')
+  t.ok(
+    output.includes('Test message'),
+    'status should print message without success indicator'
+  )
 })
 
 test('print function', testOptions, async function (t) {
@@ -78,23 +124,38 @@ test('print function', testOptions, async function (t) {
   t.teardown(teardown)
 
   const { print, ansi } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const originalConsoleLog = console.log
   let output = ''
-  console.log = (str) => { output += str + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (str) => {
+    output += str + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
   print('Test message', true)
-  t.ok(output.includes(ansi.tick + ' Test message'), 'print should print success message correctly')
+  t.ok(
+    output.includes(ansi.tick + ' Test message'),
+    'print should print success message correctly'
+  )
 
   output = ''
   print('Test message', false)
-  t.ok(output.includes(ansi.cross + ' Test message'), 'print should print failure message correctly')
+  t.ok(
+    output.includes(ansi.cross + ' Test message'),
+    'print should print failure message correctly'
+  )
 
   output = ''
   print('Test message')
-  t.ok(output.includes('Test message'), 'print should print message without success indicator')
+  t.ok(
+    output.includes('Test message'),
+    'print should print message without success indicator'
+  )
 })
 
 test('confirm function with valid input', testOptions, async function (t) {
@@ -115,19 +176,29 @@ test('confirm function with valid input', testOptions, async function (t) {
     input: { setMode: () => {} },
     close: () => {}
   })
-  const restoreReadLine = Helper.override('bare-readline', { createInterface: mockCreateInterface })
+  const restoreReadLine = Helper.override('bare-readline', {
+    createInterface: mockCreateInterface
+  })
   t.teardown(restoreReadLine)
 
   let output = ''
   const restoreTTY = Helper.override('bare-tty', {
     isTTY: () => true,
-    WriteStream: class { write = (str) => { output += str } },
-    ReadStream: class extends Readable { setMode = () => {} }
+    WriteStream: class {
+      write = (str) => {
+        output += str
+      }
+    },
+    ReadStream: class extends Readable {
+      setMode = () => {}
+    }
   })
   t.teardown(restoreTTY)
 
   const { ansi, confirm } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const dialog = `${ansi.warning} Are you sure you want to proceed?`
   const ask = 'Type YES to confirm'
@@ -157,7 +228,9 @@ test('confirm function with invalid input', testOptions, async function (t) {
     input: { setMode: () => {} },
     close: () => {}
   })
-  const restoreReadLine = Helper.override('bare-readline', { createInterface: mockCreateInterface })
+  const restoreReadLine = Helper.override('bare-readline', {
+    createInterface: mockCreateInterface
+  })
   t.teardown(restoreReadLine)
 
   let output = ''
@@ -169,12 +242,16 @@ test('confirm function with invalid input', testOptions, async function (t) {
         if (str.includes('Invalid input')) throw Error('Invalid input')
       }
     },
-    ReadStream: class extends Readable { setMode = () => {} }
+    ReadStream: class extends Readable {
+      setMode = () => {}
+    }
   })
   t.teardown(restoreTTY)
 
   const { ansi, confirm } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const dialog = `${ansi.warning} Are you sure you want to proceed?`
   const ask = 'Type YES to confirm'
@@ -185,7 +262,10 @@ test('confirm function with invalid input', testOptions, async function (t) {
   try {
     await confirm(dialog, ask, delim, validation, msg)
   } catch {
-    t.ok(output.includes('Invalid input'), 'confirm should reject invalid input')
+    t.ok(
+      output.includes('Invalid input'),
+      'confirm should reject invalid input'
+    )
   }
 })
 
@@ -207,11 +287,15 @@ test('permit function with unencrypted key', testOptions, async function (t) {
     input: { setMode: () => {} },
     close: () => {}
   })
-  const restoreReadLine = Helper.override('bare-readline', { createInterface: mockCreateInterface })
+  const restoreReadLine = Helper.override('bare-readline', {
+    createInterface: mockCreateInterface
+  })
   t.teardown(restoreReadLine)
 
   const { ansi, permit } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const originalExit = isBare ? Bare.exit : process.exit
   const exited = new Promise((resolve) => {
@@ -225,10 +309,16 @@ test('permit function with unencrypted key', testOptions, async function (t) {
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (str) => { output += str + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (str) => {
+    output += str + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
-  const mockKey = hypercoreid.decode('d47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221')
+  const mockKey = hypercoreid.decode(
+    'd47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221'
+  )
   const mockIpc = {
     permit: async ({ key }) => {
       t.is(key, mockKey, 'permit should call ipc.permit with the correct key')
@@ -241,7 +331,12 @@ test('permit function with unencrypted key', testOptions, async function (t) {
   const mockCmd = 'run'
 
   await permit(mockIpc, mockInfo, mockCmd)
-  t.ok(output.includes(`${ansi.tick} pear://${hypercoreid.encode(mockKey)} is now trusted`), 'permit should print trust confirmation message')
+  t.ok(
+    output.includes(
+      `${ansi.tick} pear://${hypercoreid.encode(mockKey)} is now trusted`
+    ),
+    'permit should print trust confirmation message'
+  )
 
   const exitedRes = await exited
   t.is(exitedRes, true, 'Pear.exit ok')
@@ -267,11 +362,15 @@ test('permit function with encrypted key', testOptions, async function (t) {
     input: { setMode: () => {} },
     close: () => {}
   })
-  const restoreReadLine = Helper.override('bare-readline', { createInterface: mockCreateInterface })
+  const restoreReadLine = Helper.override('bare-readline', {
+    createInterface: mockCreateInterface
+  })
   t.teardown(restoreReadLine)
 
   const { ansi, permit } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const originalExit = isBare ? Bare.exit : process.exit
   const exited = new Promise((resolve) => {
@@ -285,14 +384,24 @@ test('permit function with encrypted key', testOptions, async function (t) {
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (str) => { output += str + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (str) => {
+    output += str + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
-  const mockKey = hypercoreid.decode('d47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221')
+  const mockKey = hypercoreid.decode(
+    'd47c1dfecec0f74a067985d2f8d7d9ad15f9ae5ff648f7bc6ca28e41d70ed221'
+  )
   const mockIpc = {
     permit: async ({ key, password }) => {
       t.is(key, mockKey, 'permit should call ipc.permit with the correct key')
-      t.is(password, mockPassword, 'permit should call ipc.permit with the correct password')
+      t.is(
+        password,
+        mockPassword,
+        'permit should call ipc.permit with the correct password'
+      )
     },
     close: async () => {
       t.pass('ipc.close should be called')
@@ -304,11 +413,18 @@ test('permit function with encrypted key', testOptions, async function (t) {
     run: async () => ({ value: mockPassword })
   }
 
-  const restoreTerminal = Helper.override('..', { Interact: () => mockInteract })
+  const restoreTerminal = Helper.override('..', {
+    Interact: () => mockInteract
+  })
   t.teardown(restoreTerminal)
 
   await permit(mockIpc, mockInfo, mockCmd)
-  t.ok(output.includes(`${ansi.tick} Added encryption key for pear://${hypercoreid.encode(mockKey)}`), 'permit should print encryption confirmation message')
+  t.ok(
+    output.includes(
+      `${ansi.tick} Added encryption key for pear://${hypercoreid.encode(mockKey)}`
+    ),
+    'permit should print encryption confirmation message'
+  )
 
   const exitedRes = await exited
   t.is(exitedRes, true, 'Pear.exit ok')
@@ -323,16 +439,23 @@ test('Interact - autosubmit', testOptions, async function (t) {
   let readlineCalled = false
   const mockCreateInterface = () => ({
     _prompt: '',
-    once: (event, callback) => { readlineCalled = true; callback(Buffer.from('')) },
+    once: (event, callback) => {
+      readlineCalled = true
+      callback(Buffer.from(''))
+    },
     on: () => {},
     input: { setMode: () => {} },
     close: () => {}
   })
-  const restoreReadLine = Helper.override('bare-readline', { createInterface: mockCreateInterface })
+  const restoreReadLine = Helper.override('bare-readline', {
+    createInterface: mockCreateInterface
+  })
   t.teardown(restoreReadLine)
 
   const { Interact } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const mockCmd = 'run'
 
@@ -354,19 +477,28 @@ test('outputter - JSON mode', testOptions, async function (t) {
   t.teardown(teardown)
 
   const { outputter } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const mockData = [{ tag: 'test', data: 'Test output' }]
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { output += msg + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (msg) => {
+    output += msg + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
   const outputterFn = outputter('test-cmd')
   await outputterFn({ json: true }, mockData)
 
-  t.ok(output.includes('"data":"Test output"'), 'should print JSON when in JSON mode')
+  t.ok(
+    output.includes('"data":"Test output"'),
+    'should print JSON when in JSON mode'
+  )
 })
 
 test('outputter - JSON mode - with log', testOptions, async function (t) {
@@ -376,24 +508,38 @@ test('outputter - JSON mode - with log', testOptions, async function (t) {
   t.teardown(teardown)
 
   const { outputter } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   const mockData = [{ tag: 'test', data: 'Test output' }]
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { output += msg + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (msg) => {
+    output += msg + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
   const logOutput = []
-  const log = (msg) => { logOutput.push(msg) }
+  const log = (msg) => {
+    logOutput.push(msg)
+  }
 
   const outputterFn = outputter('test-cmd')
   await outputterFn({ json: true, log }, mockData)
 
   t.is(output, '', 'should not print to console')
-  t.ok(logOutput.length > 0, 'should use log function when provided in json mode')
-  t.ok(logOutput[0].includes('"data":"Test output"'), 'should contain JSON output in log')
+  t.ok(
+    logOutput.length > 0,
+    'should use log function when provided in json mode'
+  )
+  t.ok(
+    logOutput[0].includes('"data":"Test output"'),
+    'should contain JSON output in log'
+  )
 })
 
 test('outputter - non-JSON mode', testOptions, async function (t) {
@@ -405,18 +551,30 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
   let ttyOutput = ''
   const restoreTTY = Helper.override('bare-tty', {
     isTTY: () => true,
-    WriteStream: class { write = (str) => { ttyOutput += str } },
-    ReadStream: class extends Readable { setMode = () => {} }
+    WriteStream: class {
+      write = (str) => {
+        ttyOutput += str
+      }
+    },
+    ReadStream: class extends Readable {
+      setMode = () => {}
+    }
   })
   t.teardown(restoreTTY)
 
   const { outputter } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { output += msg + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (msg) => {
+    output += msg + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
   const testData = [
     { tag: 'info', data: 'Processing files...' },
@@ -433,17 +591,27 @@ test('outputter - non-JSON mode', testOptions, async function (t) {
     arr: (data) => ({ output: 'print', message: ['a', 'b', 'c', data] }),
     status: (data) => ({ output: 'status', message: data }),
     message: (data) => `Received: ${data}`,
-    result: (data) => ({ output: 'print', message: data.message, success: data.success })
+    result: (data) => ({
+      output: 'print',
+      message: data.message,
+      success: data.success
+    })
   }
 
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false }, testData)
 
   t.ok(output.includes('Processing files...'), 'should output normal messages')
-  t.ok(output.includes('a\nb\nc\nArray'), 'should handle array message correctly')
+  t.ok(
+    output.includes('a\nb\nc\nArray'),
+    'should handle array message correctly'
+  )
   t.ok(ttyOutput.includes('Loading...'), 'should output status messages')
   t.ok(output.includes('Received: Hello World'), 'should transform message')
-  t.ok(output.includes('Success'), 'should handle final tag with success message')
+  t.ok(
+    output.includes('Success'),
+    'should handle final tag with success message'
+  )
   t.ok(!output.includes('invalid'), 'should ignore invalid tags')
   t.ok(output.includes('Operation completed'), 'should handle success result')
 })
@@ -457,18 +625,30 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
   let ttyOutput = ''
   const restoreTTY = Helper.override('bare-tty', {
     isTTY: () => true,
-    WriteStream: class { write = (str) => { ttyOutput += str } },
-    ReadStream: class extends Readable { setMode = () => {} }
+    WriteStream: class {
+      write = (str) => {
+        ttyOutput += str
+      }
+    },
+    ReadStream: class extends Readable {
+      setMode = () => {}
+    }
   })
   t.teardown(restoreTTY)
 
   const { outputter, ansi } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   let output = ''
   const originalConsoleLog = console.log
-  console.log = (msg) => { output += msg + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (msg) => {
+    output += msg + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
   const testData = [
     { tag: 'info', data: 'Processing files...' },
@@ -485,24 +665,46 @@ test('outputter - non-JSON mode - with log', testOptions, async function (t) {
     arr: (data) => ({ output: 'print', message: ['a', 'b', 'c', data] }),
     status: (data) => ({ output: 'status', message: data }),
     message: (data) => `Received: ${data}`,
-    result: (data) => ({ output: 'print', message: data.message, success: data.success })
+    result: (data) => ({
+      output: 'print',
+      message: data.message,
+      success: data.success
+    })
   }
 
   let logOutput = ''
-  const log = (msg) => { logOutput += msg + '\n' }
+  const log = (msg) => {
+    logOutput += msg + '\n'
+  }
 
   const outputterFn = outputter('test-cmd', taggers)
   await outputterFn({ json: false, log }, testData)
 
-  t.is(ttyOutput.replace(ansi.hideCursor(), '').replace(ansi.showCursor(), ''), '', 'should not print any text output to tty')
+  t.is(
+    ttyOutput.replace(ansi.hideCursor(), '').replace(ansi.showCursor(), ''),
+    '',
+    'should not print any text output to tty'
+  )
   t.is(output, '', 'should not print using console.log when log is specified')
-  t.ok(logOutput.includes('Processing files...'), 'should use log for normal messages')
-  t.ok(logOutput.includes('a\nb\nc\nArray'), 'should handle array message correctly')
+  t.ok(
+    logOutput.includes('Processing files...'),
+    'should use log for normal messages'
+  )
+  t.ok(
+    logOutput.includes('a\nb\nc\nArray'),
+    'should handle array message correctly'
+  )
   t.ok(logOutput.includes('Loading...'), 'should use log for status message')
-  t.ok(logOutput.includes('Received: Hello World'), 'should use log for transformed messages')
+  t.ok(
+    logOutput.includes('Received: Hello World'),
+    'should use log for transformed messages'
+  )
   t.ok(logOutput.includes('Success'), 'should use log for final tag')
   t.ok(!logOutput.includes('invalid'), 'should ignore invalid tags')
-  t.ok(logOutput.includes('Operation completed'), 'should handle success result')
+  t.ok(
+    logOutput.includes('Operation completed'),
+    'should handle success result'
+  )
 })
 
 test('byteDiff function', testOptions, async function (t) {
@@ -513,21 +715,36 @@ test('byteDiff function', testOptions, async function (t) {
 
   const originalConsoleLog = console.log
   let output = ''
-  console.log = (msg) => { output += msg + '\n' }
-  t.teardown(() => { console.log = originalConsoleLog })
+  console.log = (msg) => {
+    output += msg + '\n'
+  }
+  t.teardown(() => {
+    console.log = originalConsoleLog
+  })
 
   const { byteDiff } = require('..')
-  t.teardown(() => { Helper.forget('..') })
+  t.teardown(() => {
+    Helper.forget('..')
+  })
 
   output = ''
   byteDiff({ type: 1, sizes: [1024, 2048], message: 'Files added' })
-  t.ok(output.includes('Files added') && output.includes('(+1kB, +2kB)'), 'should support added files')
+  t.ok(
+    output.includes('Files added') && output.includes('(+1kB, +2kB)'),
+    'should support added files'
+  )
 
   output = ''
   byteDiff({ type: -1, sizes: [-512, -1024], message: 'Files removed' })
-  t.ok(output.includes('Files removed') && output.includes('(-512B, -1kB)'), 'should support removed files')
+  t.ok(
+    output.includes('Files removed') && output.includes('(-512B, -1kB)'),
+    'should support removed files'
+  )
 
   output = ''
   byteDiff({ type: 0, sizes: [1024, -512, 0], message: 'Files changed' })
-  t.ok(output.includes('Files changed') && output.includes('(+1kB, -512B, 0B)'), 'should support changed files')
+  t.ok(
+    output.includes('Files changed') && output.includes('(+1kB, -512B, 0B)'),
+    'should support changed files'
+  )
 })

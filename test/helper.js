@@ -63,10 +63,7 @@ class Helper {
     const timeout = opts.timeout || 10000
     const res = new Promise((resolve, reject) => {
       let buffer = ''
-      const timeoutId = setTimeout(
-        () => reject(new Error('timed out')),
-        timeout
-      )
+      const timeoutId = setTimeout(() => reject(new Error('timed out')), timeout)
       pipe.on('data', (data) => {
         buffer += data.toString()
         if (buffer[buffer.length - 1] === STOP_CHAR) {
@@ -93,10 +90,7 @@ class Helper {
 
   static async untilClose(pipe, opts = {}) {
     const res = new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(
-        () => reject(new Error('timed out')),
-        opts.timeout ?? 5000
-      )
+      const timeoutId = setTimeout(() => reject(new Error('timed out')), opts.timeout ?? 5000)
       pipe.on('close', () => {
         clearTimeout(timeoutId)
         resolve('closed')
@@ -117,9 +111,7 @@ class Helper {
   static async isRunning(pid) {
     try {
       // 0 is a signal that doesn't kill the process, just checks if it's running
-      return global.process
-        ? process.kill(pid, 0)
-        : require('bare-os').kill(pid, 0)
+      return global.process ? process.kill(pid, 0) : require('bare-os').kill(pid, 0)
     } catch (err) {
       return err.code === 'EPERM'
     }
@@ -175,10 +167,7 @@ class Helper {
       : require.resolve(moduleName)
     if (BUILTINS.has(moduleName)) {
       require.cache[modulePath] = {
-        exports:
-          typeof override === 'function'
-            ? override
-            : { ...require(moduleName), ...override }
+        exports: typeof override === 'function' ? override : { ...require(moduleName), ...override }
       }
       return () => {
         delete require.cache[moduleName]
@@ -190,8 +179,7 @@ class Helper {
     require.cache[modulePath].exports =
       typeof override === 'function' ? override : { ...original, ...override }
     return () => {
-      if (require.cache[modulePath])
-        require.cache[modulePath].exports = original
+      if (require.cache[modulePath]) require.cache[modulePath].exports = original
     }
   }
 

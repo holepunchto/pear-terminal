@@ -4,10 +4,7 @@ const readline = require('bare-readline')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
 const { Writable, Readable } = require('streamx')
-const {
-  Writable: BareWritable,
-  Readable: BareReadable
-} = require('bare-stream')
+const { Writable: BareWritable, Readable: BareReadable } = require('bare-stream')
 const { once } = require('bare-events')
 const hypercoreid = require('hypercore-id-encoding')
 const byteSize = require('tiny-byte-size')
@@ -109,9 +106,7 @@ const stdio = new (class Stdio {
 
   get in() {
     if (this._in === null) {
-      this._in = tty.isTTY(0)
-        ? new tty.ReadStream(0)
-        : new this.constructor.ReadStream(0)
+      this._in = tty.isTTY(0) ? new tty.ReadStream(0) : new this.constructor.ReadStream(0)
       this._in.once('close', () => {
         this._in = null
       })
@@ -121,17 +116,13 @@ const stdio = new (class Stdio {
 
   get out() {
     if (this._out === null)
-      this._out = tty.isTTY(1)
-        ? new tty.WriteStream(1)
-        : new this.constructor.WriteStream(1)
+      this._out = tty.isTTY(1) ? new tty.WriteStream(1) : new this.constructor.WriteStream(1)
     return this._out
   }
 
   get err() {
     if (this._err === null)
-      this._err = tty.isTTY(2)
-        ? new tty.WriteStream(2)
-        : new this.constructor.WriteStream(2)
+      this._err = tty.isTTY(2) ? new tty.WriteStream(2) : new this.constructor.WriteStream(2)
     return this._err
   }
 
@@ -144,9 +135,7 @@ const stdio = new (class Stdio {
   raw(rawMode) {
     this.rawMode = !!rawMode
     return this.in.setMode?.(
-      this.rawMode
-        ? this.tty.constants.MODE_RAW
-        : this.tty.constants.MODE_NORMAL
+      this.rawMode ? this.tty.constants.MODE_RAW : this.tty.constants.MODE_NORMAL
     )
   }
 })()
@@ -210,13 +199,9 @@ class Interact {
 
         if (answer.length === 0) answer = defaults[param.name] ?? deflt
         if (!param.validation || (await param.validation(answer))) {
-          if (typeof answer === 'string')
-            answer = answer.replace(this.constructor.rx, '')
+          if (typeof answer === 'string') answer = answer.replace(this.constructor.rx, '')
           fields[param.name] = answer
-          if (
-            Array.isArray(param.shave) &&
-            param.shave.every((ix) => typeof ix === 'number')
-          )
+          if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number'))
             shave[param.name] = param.shave
           break
         } else {
@@ -234,10 +219,7 @@ class Interact {
     while (this._params.length) {
       const param = this._params.shift()
       fields[param.name] = defaults[param.name] ?? param.default
-      if (
-        Array.isArray(param.shave) &&
-        param.shave.every((ix) => typeof ix === 'number')
-      )
+      if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number'))
         shave[param.name] = param.shave
     }
     return { fields, shave }
@@ -256,18 +238,13 @@ let statusFrag = ''
 function status(msg, success) {
   msg = msg || ''
   const done = typeof success === 'boolean'
-  if (msg)
-    stdio.out.write(
-      `\x1B[2K\r${indicator(success)}${msg}\n${done ? '' : ansi.upHome()}`
-    )
+  if (msg) stdio.out.write(`\x1B[2K\r${indicator(success)}${msg}\n${done ? '' : ansi.upHome()}`)
   statusFrag = msg.slice(0, 3)
 }
 
 function print(message, success) {
   statusFrag = ''
-  console.log(
-    `${typeof success !== 'undefined' ? indicator(success) : ''}${message}`
-  )
+  console.log(`${typeof success !== 'undefined' ? indicator(success) : ''}${message}`)
 }
 
 function byteDiff({ type, sizes, message }) {
@@ -282,16 +259,8 @@ function indicator(value, type = 'success') {
   else if (value === false) value = -1
   else if (value == null) value = 0
   if (type === 'diff')
-    return value === 0
-      ? ansi.yellow('~')
-      : value === 1
-        ? ansi.green('+')
-        : ansi.red('-')
-  return value < 0
-    ? ansi.cross + ' '
-    : value > 0
-      ? ansi.tick + ' '
-      : ansi.gray('- ')
+    return value === 0 ? ansi.yellow('~') : value === 1 ? ansi.green('+') : ansi.red('-')
+  return value < 0 ? ansi.cross + ' ' : value > 0 ? ansi.tick + ' ' : ansi.gray('- ')
 }
 
 const outputter =
@@ -317,15 +286,12 @@ const outputter =
       }
 
       const transform = Promise.resolve(
-        typeof taggers[tag] === 'function'
-          ? taggers[tag](data, info, ipc)
-          : taggers[tag] || false
+        typeof taggers[tag] === 'function' ? taggers[tag](data, info, ipc) : taggers[tag] || false
       )
       transform.then(
         (result) => {
           if (result === undefined) return
-          if (typeof result === 'string')
-            result = { output: 'print', message: result }
+          if (typeof result === 'string') result = { output: 'print', message: result }
           if (result === false) {
             if (tag === 'final')
               result = {
@@ -405,8 +371,7 @@ async function trust(ipc, key, cmd) {
   }
 
   const z32 = hypercoreid.encode(key)
-  const dialog =
-    ansi.cross + ' Key pear://' + z32 + ' is not known\n\n' + explain[cmd]
+  const dialog = ansi.cross + ' Key pear://' + z32 + ' is not known\n\n' + explain[cmd]
   const delim = '?'
   const validation = (value) => value === 'TRUST'
   const msg = '\n' + ansi.cross + ' uppercase TRUST to confirm\n'
@@ -439,21 +404,11 @@ async function password(ipc, key, cmd) {
       z32 +
       ' is an encrypted application. \n' +
       '\nEnter the password to run the app.\n\n',
-    stage:
-      'This application is encrypted.\n' +
-      '\nEnter the password to stage the app.\n\n',
-    seed:
-      'This application is encrypted.\n' +
-      '\nEnter the password to seed the app.\n\n',
-    dump:
-      'This application is encrypted.\n' +
-      '\nEnter the password to dump the app.\n\n',
-    init:
-      'This template is encrypted.\n' +
-      '\nEnter the password to init from the template.\n\n',
-    info:
-      'This application is encrypted.\n' +
-      '\nEnter the password to retrieve info.\n\n'
+    stage: 'This application is encrypted.\n' + '\nEnter the password to stage the app.\n\n',
+    seed: 'This application is encrypted.\n' + '\nEnter the password to seed the app.\n\n',
+    dump: 'This application is encrypted.\n' + '\nEnter the password to dump the app.\n\n',
+    init: 'This template is encrypted.\n' + '\nEnter the password to init from the template.\n\n',
+    info: 'This application is encrypted.\n' + '\nEnter the password to retrieve info.\n\n'
   }
 
   const message = {

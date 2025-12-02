@@ -1,5 +1,5 @@
 'use strict'
-/* global Bare */
+
 const readline = require('bare-readline')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
@@ -115,14 +115,16 @@ const stdio = new (class Stdio {
   }
 
   get out() {
-    if (this._out === null)
+    if (this._out === null) {
       this._out = tty.isTTY(1) ? new tty.WriteStream(1) : new this.constructor.WriteStream(1)
+    }
     return this._out
   }
 
   get err() {
-    if (this._err === null)
+    if (this._err === null) {
       this._err = tty.isTTY(2) ? new tty.WriteStream(2) : new this.constructor.WriteStream(2)
+    }
     return this._err
   }
 
@@ -201,8 +203,9 @@ class Interact {
         if (!param.validation || (await param.validation(answer))) {
           if (typeof answer === 'string') answer = answer.replace(this.constructor.rx, '')
           fields[param.name] = answer
-          if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number'))
+          if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')) {
             shave[param.name] = param.shave
+          }
           break
         } else {
           stdio.out.write(param.msg + '\n')
@@ -219,8 +222,9 @@ class Interact {
     while (this._params.length) {
       const param = this._params.shift()
       fields[param.name] = defaults[param.name] ?? param.default
-      if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number'))
+      if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')) {
         shave[param.name] = param.shave
+      }
     }
     return { fields, shave }
   }
@@ -257,9 +261,10 @@ function indicator(value, type = 'success') {
   if (value === undefined) return ''
   if (value === true) value = 1
   else if (value === false) value = -1
-  else if (value == null) value = 0
-  if (type === 'diff')
+  else if (value === null) value = 0
+  if (type === 'diff') {
     return value === 0 ? ansi.yellow('~') : value === 1 ? ansi.green('+') : ansi.red('-')
+  }
   return value < 0 ? ansi.cross + ' ' : value > 0 ? ansi.tick + ' ' : ansi.gray('- ')
 }
 
@@ -293,12 +298,14 @@ const outputter =
           if (result === undefined) return
           if (typeof result === 'string') result = { output: 'print', message: result }
           if (result === false) {
-            if (tag === 'final')
+            if (tag === 'final') {
               result = {
                 output: 'print',
                 message: (data.message ?? data.success) ? 'Success' : 'Failure'
               }
-            else result = {}
+            } else {
+              result = {}
+            }
           }
           result.success = result.success ?? data?.success
           const { output, message, success = data?.success } = result

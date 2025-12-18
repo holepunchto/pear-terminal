@@ -15,7 +15,7 @@ const BUILTINS = new Set(require('bare-module').builtinModules)
 const noop = () => {}
 
 class Helper {
-  static rig ({
+  static rig({
     ipc = { ref: noop, unref: noop },
     state = { config: { applink: 'pear://keet' }, applink: 'pear://keet' },
     runtimeArgv,
@@ -47,7 +47,11 @@ class Helper {
 
     return () => {
       if (clearRequireCache) {
-        delete require.cache[isBare ? pathToFileURL(require.resolve(clearRequireCache)) : require.resolve(clearRequireCache)]
+        delete require.cache[
+          isBare
+            ? pathToFileURL(require.resolve(clearRequireCache))
+            : require.resolve(clearRequireCache)
+        ]
       }
       program.argv.length = 0
       program.argv.push(...argv)
@@ -55,7 +59,7 @@ class Helper {
     }
   }
 
-  static async untilResult (pipe, opts = {}) {
+  static async untilResult(pipe, opts = {}) {
     const timeout = opts.timeout || 10000
     const res = new Promise((resolve, reject) => {
       let buffer = ''
@@ -84,7 +88,7 @@ class Helper {
     return res
   }
 
-  static async untilClose (pipe, opts = {}) {
+  static async untilClose(pipe, opts = {}) {
     const res = new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => reject(new Error('timed out')), opts.timeout ?? 5000)
       pipe.on('close', () => {
@@ -104,7 +108,7 @@ class Helper {
     return res
   }
 
-  static async isRunning (pid) {
+  static async isRunning(pid) {
     try {
       // 0 is a signal that doesn't kill the process, just checks if it's running
       return global.process ? process.kill(pid, 0) : require('bare-os').kill(pid, 0)
@@ -113,7 +117,7 @@ class Helper {
     }
   }
 
-  static async untilExit (pid, timeout = 5000) {
+  static async untilExit(pid, timeout = 5000) {
     if (!pid) throw new Error('Invalid pid')
     const start = Date.now()
     while (await this.isRunning(pid)) {
@@ -122,7 +126,7 @@ class Helper {
     }
   }
 
-  static async untilExists (path, timeout = 5000, start = Date.now()) {
+  static async untilExists(path, timeout = 5000, start = Date.now()) {
     if (Date.now() - start > timeout) throw new Error('timed out')
     try {
       await fs.promises.stat(path)
@@ -134,7 +138,7 @@ class Helper {
     await Helper.untilExists(path, timeout, start)
   }
 
-  static async untilHandler (handler, timeout = 5000, start = Date.now()) {
+  static async untilHandler(handler, timeout = 5000, start = Date.now()) {
     if (Date.now() - start > timeout) throw new Error('timed out')
     try {
       const res = await handler()
@@ -144,34 +148,45 @@ class Helper {
     await Helper.untilHandler(handler, timeout, start)
   }
 
-  static async startIpcClient () {
+  static async startIpcClient() {
     const client = new IPC.Client({ socketPath })
     await client.ready()
     return client
   }
 
-  static async startIpcServer ({ handlers, teardown }) {
+  static async startIpcServer({ handlers, teardown }) {
     const server = new IPC.Server({ socketPath, handlers })
     teardown(() => server.close())
     await server.ready()
     return server
   }
 
-  static override (moduleName, override) {
-    const modulePath = isBare ? pathToFileURL(require.resolve(moduleName)) : require.resolve(moduleName)
+  static override(moduleName, override) {
+    const modulePath = isBare
+      ? pathToFileURL(require.resolve(moduleName))
+      : require.resolve(moduleName)
     if (BUILTINS.has(moduleName)) {
-      require.cache[modulePath] = { exports: typeof override === 'function' ? override : { ...require(moduleName), ...override } }
-      return () => { delete require.cache[moduleName] }
+      require.cache[modulePath] = {
+        exports: typeof override === 'function' ? override : { ...require(moduleName), ...override }
+      }
+      return () => {
+        delete require.cache[moduleName]
+      }
     }
 
     if (!require.cache[modulePath]) require(moduleName)
     const original = require.cache[modulePath].exports
-    require.cache[modulePath].exports = typeof override === 'function' ? override : { ...original, ...override }
-    return () => { if (require.cache[modulePath]) require.cache[modulePath].exports = original }
+    require.cache[modulePath].exports =
+      typeof override === 'function' ? override : { ...original, ...override }
+    return () => {
+      if (require.cache[modulePath]) require.cache[modulePath].exports = original
+    }
   }
 
-  static forget (moduleName) {
-    const modulePath = isBare ? pathToFileURL(require.resolve(moduleName)) : require.resolve(moduleName)
+  static forget(moduleName) {
+    const modulePath = isBare
+      ? pathToFileURL(require.resolve(moduleName))
+      : require.resolve(moduleName)
     if (require.cache[modulePath]) delete require.cache[modulePath]
   }
 }

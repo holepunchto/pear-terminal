@@ -298,41 +298,38 @@ const outputter =
           if (result === undefined) return
           if (typeof result === 'string') result = { output: 'print', message: result }
           if (result === false) {
-            if (tag === 'final') {
+            if (tag === 'final')
               result = {
                 output: 'print',
                 message: (data.message ?? data.success) ? 'Success' : 'Failure'
               }
-            } else {
-              result = {}
-            }
+            else result = {}
           }
           result.success = result.success ?? data?.success
           const { output, message, success = data?.success } = result
           if (log) {
-            const logOpts = {
-              output,
-              ...(typeof success === 'boolean' ? { success } : {})
-            }
+            const logOpts = { output, ...(typeof success === 'boolean' ? { success } : {}) }
             if (Array.isArray(message) === false) log(message, logOpts)
             else for (const msg of message) log(msg, logOpts)
             return
           }
           let msg = Array.isArray(message) ? message.join('\n') : message
-          if (tag === 'final') msg += '\n'
+          if (tag === 'final') {
+            msg += '\n'
+            if (asTTY) {
+              stdio.out.write(ansi.showCursor())
+              dereg(false)
+            }
+          }
+
           if (output === 'print') print(msg, success)
-          if (output === 'status') status(msg, success)
+          else if (output === 'status') status(msg, success)
         },
         (err) => stream.destroy(err)
       )
     })
 
-    return !asTTY
-      ? promise
-      : promise.finally(() => {
-          stdio.out.write(ansi.showCursor())
-          dereg(false)
-        })
+    return promise
   }
 
 const banner = `${ansi.bold('Pear')} ~ ${ansi.dim('Welcome to the Internet of Peers')}`

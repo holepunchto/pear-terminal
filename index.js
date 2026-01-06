@@ -3,16 +3,21 @@
 const readline = require('bare-readline')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
+const os = require('bare-os')
+const { Writable: BareWritable, Readable: BareReadable, isStream } = require('bare-stream')
 const { Writable, Readable } = require('streamx')
-const { Writable: BareWritable, Readable: BareReadable } = require('bare-stream')
-const { once } = require('bare-events')
 const hypercoreid = require('hypercore-id-encoding')
 const byteSize = require('tiny-byte-size')
 const { isWindows } = require('which-runtime')
 const { CHECKOUT } = require('pear-constants')
 const gracedown = require('pear-gracedown')
+const PearError = require('pear-errors')
 const opwait = require('pear-opwait')
 const isTTY = tty.isTTY(0)
+
+function ERR_SIGINT(msg) {
+  return new PearError(msg, ERR_SIGINT)
+}
 
 const pt = (arg) => arg
 const es = () => ''
@@ -169,12 +174,10 @@ class Interact {
       input: stdio.in,
       output: opts.masked ? new Writable({ write: mask }) : stdio.out
     })
-
-    this._rl.input?.setMode?.(tty.constants.MODE_RAW)
     this._rl.on('close', () => {
-      console.log() // new line
-      Bare.exit()
+      console.log() // newline
     })
+    this._rl.input?.setMode?.(tty.constants.MODE_RAW)
   }
 
   async run(opts) {
@@ -198,7 +201,6 @@ class Interact {
         let answer = await this.#input(
           `${param.prompt}${param.delim || ':'}${deflt && ' (' + deflt + ')'} `
         )
-
         if (answer.length === 0) answer = defaults[param.name] ?? deflt
         if (!param.validation || (await param.validation(answer))) {
           if (typeof answer === 'string') answer = answer.replace(this.constructor.rx, '')
@@ -232,8 +234,18 @@ class Interact {
   async #input(prompt) {
     stdio.out.write(prompt)
     this._rl._prompt = prompt
-    const answer = (await once(this._rl, 'data')).toString()
-    return answer.trim() // remove return char
+    const answer = await new Promise((resolve, reject) => {
+      this._rl.once('data', (data) => {
+        resolve(data)
+      })
+      this._rl.input.once('data', (data) => {
+        if (data.length === 1 && data[0] === 3) {
+          reject(ERR_SIGINT('^C exit'))
+          os.kill(Pear.pid, 'SIGINT')
+        }
+      })
+    })
+    return answer.toString().trim() // remove return char
   }
 }
 
@@ -474,7 +486,51 @@ async function confirm(dialog, ask, delim, validation, msg) {
   await interact.run()
 }
 
+function explain(bail = {}) {
+  if (!bail.reason && bail.err) {
+    const known = errors.known()
+    if (known.includes(bail.err.code) === false) {
+      print(
+        errors.ERR_UNKNOWN(
+          'Unknown [ code: ' + (bail.err.code || '(none)') + ' ] ' + bail.err.stack
+        ),
+        false
+      )
+      Bare.exit(1)
+    }
+  }
+  const messageUsage = (bail) => bail.err.message
+  const messageOnly = (bail) => bail.err.message
+  const opFail = (cmd) => cmd.err.info.message
+  const codemap = new Map([
+    ['UNKNOWN_FLAG', (bail) => 'Unrecognized Flag: --' + bail.flag.name],
+    [
+      'UNKNOWN_ARG',
+      (bail) => 'Unrecognized Argument at index ' + bail.arg.index + ' with value ' + bail.arg.value
+    ],
+    ['MISSING_ARG', (bail) => bail.arg.value],
+    ['INVALID', messageUsage],
+    ['ERR_INVALID_INPUT', messageUsage],
+    ['ERR_LEGACY', messageOnly],
+    ['ERR_INVALID_TEMPLATE', messageOnly],
+    ['ERR_DIR_NONEMPTY', messageOnly],
+    ['ERR_OPERATION_FAILED', opFail]
+  ])
+  const nouse = [messageOnly, opFail]
+  const code = codemap.has(bail.err?.code) ? bail.err.code : bail.reason
+  const ref = codemap.get(code)
+  const reason = codemap.has(code) ? (codemap.get(code)(bail) ?? bail.reason) : bail.reason
+  Bare.exitCode = 1
+
+  print(reason, false)
+
+  if (nouse.some((fn) => fn === ref) || codemap.has(code) === false) return
+
+  print('\n' + bail.command.usage())
+}
+
 module.exports = {
+  explain,
   usage,
   permit,
   stdio,

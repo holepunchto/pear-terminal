@@ -133,6 +133,14 @@ Behavior:
   - otherwise suppressed
 - TTY: hides/shows cursor, handles Ctrl+C cleanup
 
+### `explain(bail)`
+
+Processes failure mode flow for various Pear scenarios that prints sensible output showing stacks for operational errors and beautified output user errors.
+
+Returns `void`.
+
+- `bail`: a [paparam](https://github.com/holepunchto/paparam) bail object
+
 ### `isTTY`
 
 `boolean` indicating stdin TTY status.

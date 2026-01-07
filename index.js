@@ -4,19 +4,19 @@ const readline = require('bare-readline')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
 const os = require('bare-os')
-const { Writable: BareWritable, Readable: BareReadable, isStream } = require('bare-stream')
+const { Writable: BareWritable, Readable: BareReadable } = require('bare-stream')
 const { Writable, Readable } = require('streamx')
 const hypercoreid = require('hypercore-id-encoding')
 const byteSize = require('tiny-byte-size')
 const { isWindows } = require('which-runtime')
 const { CHECKOUT } = require('pear-constants')
 const gracedown = require('pear-gracedown')
-const PearError = require('pear-errors')
+const errors = require('pear-errors')
 const opwait = require('pear-opwait')
 const isTTY = tty.isTTY(0)
 
 function ERR_SIGINT(msg) {
-  return new PearError(msg, ERR_SIGINT)
+  return new errors(msg, ERR_SIGINT)
 }
 
 const pt = (arg) => arg
@@ -177,7 +177,7 @@ class Interact {
     this._rl.on('close', () => {
       console.log() // newline
     })
-    this._rl.input?.setMode?.(tty.constants.MODE_RAW)
+    stdio.in?.setMode?.(tty.constants.MODE_RAW)
   }
 
   async run(opts) {
@@ -238,7 +238,7 @@ class Interact {
       this._rl.once('data', (data) => {
         resolve(data)
       })
-      this._rl.input.once('data', (data) => {
+      stdio.in?.once('data', (data) => {
         if (data.length === 1 && data[0] === 3) {
           reject(ERR_SIGINT('^C exit'))
           os.kill(Pear.pid, 'SIGINT')
@@ -310,12 +310,12 @@ const outputter =
           if (result === undefined) return
           if (typeof result === 'string') result = { output: 'print', message: result }
           if (result === false) {
-            if (tag === 'final')
+            if (tag === 'final') {
               result = {
                 output: 'print',
                 message: (data.message ?? data.success) ? 'Success' : 'Failure'
               }
-            else result = {}
+            } else result = {}
           }
           result.success = result.success ?? data?.success
           const { output, message, success = data?.success } = result

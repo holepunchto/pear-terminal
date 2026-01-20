@@ -202,7 +202,7 @@ class Interact {
 
       stdio.out.write(this._header)
       await this._loop(this._params, out, [], null)
-      out.push({tag: 'final', data: { success: true }})
+      out.push({ tag: 'final', data: { success: true } })
       out.push(null)
     } catch (err) {
       out.destroy(err)

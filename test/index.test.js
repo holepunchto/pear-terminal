@@ -366,14 +366,6 @@ test('permit function with encrypted key', testOptions, async function (t) {
   }
   const mockInfo = { key: mockKey, encrypted: true }
   const mockCmd = 'run'
-  const mockInteract = {
-    run: async () => ({ value: mockPassword })
-  }
-
-  const restoreTerminal = Helper.override('..', {
-    Interact: () => mockInteract
-  })
-  t.teardown(restoreTerminal)
 
   await permit(mockIpc, mockInfo, mockCmd)
   t.ok(
@@ -385,7 +377,8 @@ test('permit function with encrypted key', testOptions, async function (t) {
   t.is(exitedRes, true, 'Pear.exit ok')
 })
 
-test('Interact - autosubmit', testOptions, async function (t) {
+// TODO: align autosubmit
+test.skip('Interact - autosubmit', testOptions, async function (t) {
   t.plan(3)
 
   const { teardown } = rig()

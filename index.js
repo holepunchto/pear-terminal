@@ -1,9 +1,9 @@
 'use strict'
-
 const readline = require('bare-readline')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
 const os = require('bare-os')
+const Realm = require('bare-realm')
 const { Writable: BareWritable, Readable: BareReadable } = require('bare-stream')
 const { Writable, Readable } = require('streamx')
 const hypercoreid = require('hypercore-id-encoding')
@@ -150,16 +150,21 @@ const stdio = new (class Stdio {
 class Interact {
   static rx =
     /[\x1B\x9B][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*|[a-zA-Z\d]+(?:;[-a-zA-Z\d/#&.:=?%@~_]*)*)?\x07)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g // eslint-disable-line no-control-regex
+
   constructor(header, params, opts = {}) {
     this._header = header
     this._params = params
     this._defaults = opts.defaults || {}
+    this._load =
+      opts.load ??
+      (() => {
+        throw new Error('provide a load function to load params strings')
+      })
 
     const mask = (data, cb) => {
       if (data.length > 4) {
-        // is full line
-        const prompt = this._rl._prompt
-        const regex = new RegExp(`(${prompt})([\\x20-\\x7E]+)`, 'g') // match printable chars after prompt
+        const prompt = this._prompt
+        const regex = new RegExp(`(${prompt})([\\x20-\\x7E]+)`, 'g')
         const masked = data
           .toString()
           .replace(regex, (_, prompt, pwd) => prompt + '*'.repeat(pwd.length))
@@ -175,46 +180,116 @@ class Interact {
       output: opts.masked ? new Writable({ write: mask }) : stdio.out
     })
     this._rl.on('close', () => {
-      console.log() // newline
+      console.log()
     })
     stdio.in?.setMode?.(tty.constants.MODE_RAW)
   }
 
-  async run(opts) {
+  run(opts) {
+    const out = new Readable()
+    this._run(opts, out)
+    return out
+  }
+
+  async _run(opts, out) {
     try {
-      return await this.#run(opts)
+      if (opts?.autosubmit) {
+        const res = this.#autosubmit()
+        out.push({ type: 'autosubmit', value: res })
+        out.push(null)
+        return
+      }
+
+      stdio.out.write(this._header)
+      await this._loop(this._params, out, [], null)
+      out.push(null)
+    } catch (err) {
+      out.destroy(err)
     } finally {
       if (stdio.inAttached) stdio.in.destroy()
     }
   }
 
-  async #run(opts = {}) {
-    if (opts.autosubmit) return this.#autosubmit()
-    stdio.out.write(this._header)
-    const fields = {}
-    const shave = {}
-    const defaults = this._defaults
-    while (this._params.length) {
-      const param = this._params.shift()
+  async _loop(params, out, trail, field) {
+    params = Array.isArray(params) ? params : [params]
+    while (params.length) {
+      const param = params.shift()
       while (true) {
-        const deflt = defaults[param.name] ?? param.default
-        let answer = await this.#input(
-          `${param.prompt}${param.delim || ':'}${deflt && ' (' + deflt + ')'} `
-        )
-        if (answer.length === 0) answer = defaults[param.name] ?? deflt
-        if (!param.validation || (await param.validation(answer))) {
-          if (typeof answer === 'string') answer = answer.replace(this.constructor.rx, '')
-          fields[param.name] = answer
-          if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')) {
-            shave[param.name] = param.shave
-          }
-          break
-        } else {
-          stdio.out.write(param.msg + '\n')
-        }
+        const done = await this._next(param, out, trail, field)
+        if (done) break
       }
     }
-    return { fields, shave }
+  }
+
+  async _next(param, out, trail, field) {
+    const defaults = this._defaults
+    let deflt = defaults[param.name] ?? param.default
+    const selection = Array.isArray(param.select)
+
+    let answer = selection
+      ? await this.#select(param.prompt, param.select)
+      : typeof param.params === 'string'
+        ? ''
+        : await this.#input(`${param.prompt}${param.delim || ':'}${deflt && ' (' + deflt + ')'} `)
+
+    if (answer.length === 0) answer = defaults[param.name] ?? deflt
+
+    let choice = null
+    let tag = 'input'
+
+    if (selection) {
+      const ix = Number(answer) || 0
+      const selected = param.select[ix] ?? param.select[0]
+      choice = selected.prompt ?? selected.name ?? String(ix)
+      param.params = selected.params
+      answer = param.params
+      tag = 'select'
+    } else if (typeof param.params === 'string') {
+      answer = param.params
+    }
+
+    if (typeof param.validation === 'string') {
+      const realm = new Realm()
+      param.validation = realm.evaluate(param.validation)
+      realm.destroy()
+    }
+
+    if (param.validation && !(await param.validation(answer))) {
+      stdio.out.write(param.msg + '\n')
+      return false
+    }
+
+    if (typeof answer === 'string') answer = answer.replace(this.constructor.rx, '')
+
+    const base = param.name === field ? trail : trail.concat(param.name)
+    const isGroup = typeof param.params === 'string'
+
+    if (selection) {
+      const selected = base.concat(choice)
+      out.push({ tag, data: { trail: selected, name: choice, answer } })
+      if (isGroup) {
+        out.push({ tag: 'enter', data: { trail: selected, name: param.name, answer: answer } })
+        param.params = await this._load(param.params)
+        await this._loop(param.params, out, selected, choice)
+        out.push({ tag: 'exit', data: { trail: selected, name: param.name, answer: answer } })
+      }
+      return true
+    }
+
+    if (isGroup) {
+      out.push({ tag: 'enter', data: { trail: base, name: param.name, answer } })
+      param.params = await this._load(param.params)
+      await this._loop(param.params, out, base, param.name)
+      out.push({ tag: 'exit', data: { trail: base, name: param.name, answer } })
+      return true
+    }
+
+    const shave =
+      Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')
+        ? param.shave
+        : undefined
+    out.push({ tag, data: { trail: base, name: param.name, answer, shave } })
+    return true
   }
 
   #autosubmit() {
@@ -231,13 +306,19 @@ class Interact {
     return { fields, shave }
   }
 
+  async #select(prompt, select) {
+    return (
+      (await this.#input(
+        prompt + ' [' + select.map(({ prompt }, index) => index + ':' + prompt).join(' ') + ']\n> '
+      )) || '0'
+    )
+  }
+
   async #input(prompt) {
     stdio.out.write(prompt)
-    this._rl._prompt = prompt
+    this._prompt = prompt
     const answer = await new Promise((resolve, reject) => {
-      this._rl.once('data', (data) => {
-        resolve(data)
-      })
+      this._rl.once('data', (data) => resolve(data))
       stdio.in?.once('data', (data) => {
         if (data.length === 1 && data[0] === 3) {
           reject(ERR_SIGINT('^C exit'))
@@ -245,7 +326,7 @@ class Interact {
         }
       })
     })
-    return answer.toString().trim() // remove return char
+    return answer.toString().trim()
   }
 }
 

@@ -223,7 +223,7 @@ class Interact {
 
   async _next(param, out, trail, field) {
     const defaults = this._defaults
-    let deflt = defaults[param.name] ?? param.default
+    const deflt = defaults[param.name] ?? param.default
     const selection = Array.isArray(param.select)
 
     let answer = selection

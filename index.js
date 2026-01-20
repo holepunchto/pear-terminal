@@ -202,6 +202,7 @@ class Interact {
 
       stdio.out.write(this._header)
       await this._loop(this._params, out, [], null)
+      out.push({tag: 'final', data: { success: true }})
       out.push(null)
     } catch (err) {
       out.destroy(err)
@@ -484,7 +485,7 @@ async function trust(ipc, key, cmd) {
     }
   ])
 
-  await interact.run()
+  await opwait(interact.run())
   await ipc.permit({ key })
   print('\n' + ansi.tick + ' pear://' + z32 + ' is now trusted\n')
   print(act[cmd] + '\n')
@@ -526,7 +527,7 @@ async function password(ipc, key, cmd) {
     dialog,
     [
       {
-        name: 'value',
+        name: 'password',
         default: '',
         prompt: ask,
         delim,
@@ -536,9 +537,12 @@ async function password(ipc, key, cmd) {
     ],
     { masked: true }
   )
-  const { fields } = await interact.run()
+  let password = null
+  await opwait(interact.run(), ({ tag, data }) => {
+    if (tag === 'input' && data.name === 'password') password = data.answer
+  })
   print(`\n${ansi.key} Hashing password...`)
-  await ipc.permit({ key, password: fields.value })
+  await ipc.permit({ key, password })
   print('\n' + ansi.tick + ' ' + message[cmd] + '\n')
   await ipc.close()
   Bare.exit()
@@ -556,7 +560,7 @@ function permit(ipc, info, cmd) {
 async function confirm(dialog, ask, delim, validation, msg) {
   const interact = new Interact(dialog, [
     {
-      name: 'value',
+      name: 'confirm',
       default: '',
       prompt: ask,
       delim,
@@ -564,7 +568,7 @@ async function confirm(dialog, ask, delim, validation, msg) {
       msg
     }
   ])
-  await interact.run()
+  await opwait(interact.run())
 }
 
 function explain(bail = {}) {

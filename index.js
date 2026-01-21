@@ -252,7 +252,6 @@ class Interact {
     if (typeof param.validation === 'string') {
       const realm = new Realm()
       param.validation = realm.evaluate(param.validation)
-      realm.destroy()
     }
 
     if (param.validation && !(await param.validation(answer))) {

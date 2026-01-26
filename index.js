@@ -354,13 +354,32 @@ class Interact {
     else stdio.out.write(prompt)
     try {
       const answer = await new Promise((resolve, reject) => {
-        this._rl.once('data', (data) => resolve(data))
-        stdio.in?.once('data', (data) => {
-          if (data.length === 1 && data[0] === 3) {
-            reject(ERR_SIGINT('^C exit'))
-            os.kill(Pear.pid, 'SIGINT')
-          }
+        let done = false
+        const isSigint = (data) => {
+          if (!data || data.length === 0) return false
+          return data.length === 1 ? data[0] === 3 : data.includes(3)
+        }
+        const detachSigint = () => {
+          const input = stdio.in
+          if (!input) return
+          if (input.off) input.off('data', onSigint)
+          else if (input.removeListener) input.removeListener('data', onSigint)
+        }
+        const onSigint = (data) => {
+          if (done || !isSigint(data)) return
+          done = true
+          detachSigint()
+          reject(ERR_SIGINT('^C exit'))
+          os.kill(Pear.pid, 'SIGINT')
+        }
+
+        this._rl.once('data', (data) => {
+          if (done) return
+          done = true
+          detachSigint()
+          resolve(data)
         })
+        stdio.in?.on('data', onSigint)
       })
       return answer.toString().trim()
     } finally {

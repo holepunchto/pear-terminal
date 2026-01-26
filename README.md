@@ -37,7 +37,7 @@ Returns `Promise<void>`.
 Interactive prompt runner.
 
 - `header`: `string` shown once before prompts
-- `params`: `Array<{ name, prompt, default?, delim?, validation?, msg?, shave? }>`
+- `params`: `Array<{ name, prompt, default?, delim?, validation?, msg?, shave?, select?, hint? }>`
 - `opts.masked`: `boolean` mask user input (passwords)
 - `opts.defaults`: `{ [name:string]: any }` fallback values
 
@@ -48,6 +48,28 @@ Process prompts and return answers.
 Returns `Promise<{ fields, shave }>`.
 
 - `opts.autosubmit`: `boolean` fill with defaults without prompting
+
+#### `select` params
+
+To create a selection prompt, set `select` on a param:
+
+```js
+{
+  name: 'template',
+  prompt: 'Choose a template',
+  hint: 'Use number keys. Return to submit.',
+  select: [
+    { prompt: 'Minimal', desc: 'Bare setup', params: { value: 'minimal' } },
+    { prompt: 'Web', desc: 'Web starter kit', params: { value: 'web' } },
+    { prompt: 'Desktop', desc: 'Native shell', params: { value: 'desktop' } }
+  ]
+}
+```
+
+Notes:
+- `params` is required for each select option.
+- If `params` is a string, it is treated as a group name and will be loaded via the `opts.load` function.
+- `hint` is optional and renders a dim helper string after the prompt.
 
 ### `stdio`
 

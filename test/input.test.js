@@ -271,3 +271,68 @@ test('Interact - input shows dimmed default placeholder', testOptions, async fun
   t.ok(output.includes(ansi.dim('(my-app)')), 'should render dimmed default placeholder')
   t.ok(!outputAfterType.includes(ansi.dim('(my-app)')), 'should hide placeholder after typing')
 })
+
+test('Interact - ctrl-c after typing rejects', testOptions, async function (t) {
+  t.plan(1)
+
+  const teardown = Helper.rigPearGlobal()
+  t.teardown(teardown)
+
+  let rlDataHandler = null
+  const restoreReadLine = Helper.stubReadline(() => ({
+    _prompt: '',
+    once: (event, callback) => {
+      if (event === 'data') rlDataHandler = callback
+    },
+    on: () => {},
+    off: () => {},
+    input: { setMode: () => {} },
+    close: () => {}
+  }))
+  t.teardown(restoreReadLine)
+
+  let inputStream = null
+  const { EventEmitter } = require('bare-events')
+  const restoreTTY = Helper.override('bare-tty', {
+    isTTY: () => true,
+    WriteStream: class {
+      write = () => {}
+    },
+    ReadStream: class extends EventEmitter {
+      constructor() {
+        super()
+        inputStream = this
+      }
+      setMode = () => {}
+      destroy = () => {}
+    }
+  })
+  t.teardown(restoreTTY)
+
+  const restoreOS = Helper.override('bare-os', { kill: () => {} })
+  t.teardown(restoreOS)
+
+  const { Interact } = require('..')
+  t.teardown(() => {
+    Helper.forget('..')
+  })
+
+  const interact = new Interact('', [{ name: 'name', prompt: 'Name', delim: ':' }])
+
+  await new Promise((resolve, reject) => {
+    const stream = interact.run()
+    stream.on('data', () => {})
+    stream.on('error', (err) => {
+      t.ok(err.message.includes('^C exit'), 'should reject on ctrl-c')
+      resolve()
+    })
+    stream.on('end', () => reject(new Error('unexpected end')))
+
+    setTimeout(() => {
+      if (!inputStream) return reject(new Error('missing input stream'))
+      inputStream.emit('data', Buffer.from('a'))
+      inputStream.emit('data', Buffer.from([3]))
+      if (rlDataHandler) rlDataHandler(Buffer.from('ignored\n'))
+    }, 5)
+  })
+})

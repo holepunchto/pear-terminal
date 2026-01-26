@@ -16,7 +16,7 @@ async function main() {
       name: 'email',
       prompt: 'Email',
       delim: ':',
-      validation: (value) => value.includes('@'),
+      validation: (value) => value?.includes('@'),
       msg: 'Please enter a valid email.\n'
     }
   ])
@@ -28,7 +28,4 @@ async function main() {
   print(`\nThanks, ${fields.name}!`)
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exitCode = 1
-})
+main()

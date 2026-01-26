@@ -292,12 +292,12 @@ const outputter =
           stdio.out.write(ansi.showCursor())
         })
       : null
-    if (typeof opts === 'boolean') opts = { json: opts }
-    const { json = false, log, mod = () => {} } = opts
+    if (typeof opts === 'boolean' || typeof opts === 'function') opts = { json: opts }
+    const { json = false, log } = opts
     const promise = opwait(stream, ({ tag, data }) => {
-      mod(tag, data)
       if (json) {
-        const str = JSON.stringify({ cmd, tag, data })
+        const replacer = typeof json === 'function' ? json : null
+        const str = JSON.stringify({ cmd, tag, data }, replacer)
         if (log) log(str)
         else print(str)
         return

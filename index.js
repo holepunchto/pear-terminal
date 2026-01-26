@@ -246,7 +246,7 @@ class Interact {
     const selection = Array.isArray(param.select)
 
     let answer = selection
-      ? await this.#select(param.prompt, param.select)
+      ? await this.#select(param.prompt, param.select, param.hint)
       : typeof param.params === 'string'
         ? ''
         : await this.#input(`${param.prompt}${param.delim || ':'} `, deflt ? `(${deflt})` : '')
@@ -324,15 +324,24 @@ class Interact {
     return { fields, shave }
   }
 
-  async #select(prompt, select) {
-    return (
-      (await this.#input(
-        prompt + ' [' + select.map(({ prompt }, index) => index + ':' + prompt).join(' ') + ']\n> '
-      )) || '0'
-    )
+  async #select(prompt, select, hint) {
+    const help = hint || 'Use number keys. Return to submit.'
+    const header = `${ansi.yellow('?')} ${prompt}${help ? ansi.dim('  - ' + help) : ''}`
+    const lines = select.map((item, index) => {
+      const label = item.prompt ?? item.name ?? String(index)
+      const detail = item.detail ?? item.description ?? item.desc ?? item.hint ?? ''
+      const detailText = detail ? ansi.dim(' - ' + detail) : ''
+      const isDefault = index === 0
+      const defaultTag = isDefault ? ansi.dim(' (default)') : ''
+      return `  ${ansi.dim(index + ')')} ${label}${detailText}${defaultTag}`
+    })
+    const inputPrompt = '> '
+    const inputPromptStyled = ansi.dim('> ')
+    const selectPrompt = `${header}\n${lines.join('\n')}\n${inputPrompt}`
+    return (await this.#input(selectPrompt, null, inputPromptStyled)) || '0'
   }
 
-  async #input(prompt, placeholder) {
+  async #input(prompt, placeholder, promptStyled) {
     const lastNewline = prompt.lastIndexOf('\n')
     if (lastNewline !== -1) {
       stdio.out.write(prompt.slice(0, lastNewline + 1))
@@ -340,7 +349,7 @@ class Interact {
     }
     this._prompt = prompt
     if (this._rl.setPrompt) this._rl.setPrompt(prompt)
-    if (placeholder) this.#enablePlaceholder(placeholder)
+    if (promptStyled || placeholder) this.#enablePromptRender(promptStyled, placeholder)
     if (this._rl.prompt) this._rl.prompt()
     else stdio.out.write(prompt)
     try {
@@ -355,37 +364,50 @@ class Interact {
       })
       return answer.toString().trim()
     } finally {
-      this.#disablePlaceholder()
+      this.#disablePromptRender()
     }
   }
 
-  #enablePlaceholder(placeholder) {
+  #ensurePromptPatch() {
     const rl = this._rl
-    if (!rl._placeholderPatched) {
-      rl._placeholderPatched = true
+    if (!rl.prompt) return
+    if (!rl._promptPatched) {
+      rl._promptPatched = true
       rl._origPrompt = rl.prompt.bind(rl)
       function promptWithPlaceholder() {
-        if (!this._placeholder) return this._origPrompt()
+        const hasPlaceholder = !!this._placeholder
+        const hasPromptStyle = !!this._promptStyled
+        if (!hasPlaceholder && !hasPromptStyle) return this._origPrompt()
 
-        const showPlaceholder = this._line.length === 0
+        const showPlaceholder = hasPlaceholder && this._line.length === 0
         const placeholderText = showPlaceholder ? this._placeholder.plain : ''
         const placeholderStyled = showPlaceholder ? this._placeholder.styled : ''
-        const line = this._prompt + placeholderStyled + this._line
-        const linePlain = this._prompt + placeholderText + this._line
-        const cursor = this._prompt.length + this._cursor
+        const promptPlain = this._prompt
+        const promptOut = this._promptStyled ?? promptPlain
+        const line = promptOut + placeholderStyled + this._line
+        const linePlain = promptPlain + placeholderText + this._line
+        const cursor = promptPlain.length + this._cursor
 
         renderPrompt(this, line, linePlain, cursor)
       }
       rl.prompt = promptWithPlaceholder
     }
-
-    const plain = placeholder
-    const styled = ansi.dim(placeholder)
-    rl._placeholder = { plain, styled }
   }
 
-  #disablePlaceholder() {
-    if (this._rl) this._rl._placeholder = null
+  #enablePromptRender(promptStyled, placeholder) {
+    this.#ensurePromptPatch()
+    this._rl._promptStyled = promptStyled ?? null
+    if (placeholder) {
+      this._rl._placeholder = { plain: placeholder, styled: ansi.dim(placeholder) }
+    } else {
+      this._rl._placeholder = null
+    }
+  }
+
+  #disablePromptRender() {
+    if (!this._rl) return
+    this._rl._placeholder = null
+    this._rl._promptStyled = null
   }
 }
 

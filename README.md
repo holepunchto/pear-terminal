@@ -67,6 +67,7 @@ To create a selection prompt, set `select` on a param:
 ```
 
 Notes:
+
 - `params` is required for each select option.
 - If `params` is a string, it is treated as a group name and will be loaded via the `opts.load` function.
 - `hint` is optional and renders a dim helper string after the prompt.

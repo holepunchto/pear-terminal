@@ -45,10 +45,7 @@ test('select - prompts with hints and numbered options', testOptions, async func
     stream.on('error', reject)
   })
 
-  t.ok(
-    tty.output.includes(`${ansi.yellow('?')} Choose a theme`),
-    'should print the select prompt'
-  )
+  t.ok(tty.output.includes(`${ansi.yellow('?')} Choose a theme`), 'should print the select prompt')
   t.ok(
     tty.output.includes(ansi.dim('  - Use number keys. Return to submit.')),
     'should print the select hint'

@@ -1,5 +1,6 @@
 'use strict'
 const readline = require('bare-readline')
+const ansiEscapes = require('bare-ansi-escapes')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
 const os = require('bare-os')
@@ -17,6 +18,23 @@ const isTTY = tty.isTTY(0)
 
 function ERR_SIGINT(msg) {
   return new errors(msg, ERR_SIGINT)
+}
+
+function renderPrompt(rl, line, linePlain, cursor) {
+  const x = cursor % rl._columns
+  const y = (cursor - x) / rl._columns
+  const offsetX = cursor === linePlain.length ? 0 : 1
+  const rows = Math.floor((linePlain.length - offsetX) / rl._columns)
+  const offsetY = rows - y
+
+  if (rl._previousRows) rl.write(ansiEscapes.cursorUp(rl._previousRows))
+  rl.write(ansiEscapes.cursorPosition(0) + ansiEscapes.eraseDisplayEnd + line)
+
+  if (x === 0 && offsetX === 0) rl.write(readline.constants.EOL)
+  else if (offsetY) rl.write(ansiEscapes.cursorUp(offsetY))
+
+  rl.write(ansiEscapes.cursorPosition(x))
+  rl._previousRows = rows - offsetY
 }
 
 const pt = (arg) => arg
@@ -231,7 +249,7 @@ class Interact {
       ? await this.#select(param.prompt, param.select)
       : typeof param.params === 'string'
         ? ''
-        : await this.#input(`${param.prompt}${param.delim || ':'}${deflt && ' (' + deflt + ')'} `)
+        : await this.#input(`${param.prompt}${param.delim || ':'} `, deflt ? `(${deflt})` : '')
 
     if (answer.length === 0) answer = defaults[param.name] ?? deflt
 
@@ -314,19 +332,60 @@ class Interact {
     )
   }
 
-  async #input(prompt) {
-    stdio.out.write(prompt)
+  async #input(prompt, placeholder) {
+    const lastNewline = prompt.lastIndexOf('\n')
+    if (lastNewline !== -1) {
+      stdio.out.write(prompt.slice(0, lastNewline + 1))
+      prompt = prompt.slice(lastNewline + 1)
+    }
     this._prompt = prompt
-    const answer = await new Promise((resolve, reject) => {
-      this._rl.once('data', (data) => resolve(data))
-      stdio.in?.once('data', (data) => {
-        if (data.length === 1 && data[0] === 3) {
-          reject(ERR_SIGINT('^C exit'))
-          os.kill(Pear.pid, 'SIGINT')
-        }
+    if (this._rl.setPrompt) this._rl.setPrompt(prompt)
+    if (placeholder) this.#enablePlaceholder(placeholder)
+    if (this._rl.prompt) this._rl.prompt()
+    else stdio.out.write(prompt)
+    try {
+      const answer = await new Promise((resolve, reject) => {
+        this._rl.once('data', (data) => resolve(data))
+        stdio.in?.once('data', (data) => {
+          if (data.length === 1 && data[0] === 3) {
+            reject(ERR_SIGINT('^C exit'))
+            os.kill(Pear.pid, 'SIGINT')
+          }
+        })
       })
-    })
-    return answer.toString().trim()
+      return answer.toString().trim()
+    } finally {
+      this.#disablePlaceholder()
+    }
+  }
+
+  #enablePlaceholder(placeholder) {
+    const rl = this._rl
+    if (!rl._placeholderPatched) {
+      rl._placeholderPatched = true
+      rl._origPrompt = rl.prompt.bind(rl)
+      function promptWithPlaceholder() {
+        if (!this._placeholder) return this._origPrompt()
+
+        const showPlaceholder = this._line.length === 0
+        const placeholderText = showPlaceholder ? this._placeholder.plain : ''
+        const placeholderStyled = showPlaceholder ? this._placeholder.styled : ''
+        const line = this._prompt + placeholderStyled + this._line
+        const linePlain = this._prompt + placeholderText + this._line
+        const cursor = this._prompt.length + this._cursor
+
+        renderPrompt(this, line, linePlain, cursor)
+      }
+      rl.prompt = promptWithPlaceholder
+    }
+
+    const plain = placeholder
+    const styled = ansi.dim(placeholder)
+    rl._placeholder = { plain, styled }
+  }
+
+  #disablePlaceholder() {
+    if (this._rl) this._rl._placeholder = null
   }
 }
 

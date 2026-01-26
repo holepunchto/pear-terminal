@@ -418,6 +418,88 @@ test.skip('Interact - autosubmit', testOptions, async function (t) {
   t.is(fields.password, 'defaultpass', 'should use default value for password')
 })
 
+test('Interact - input shows dimmed default placeholder', testOptions, async function (t) {
+  t.plan(3)
+
+  const { teardown } = rig()
+  t.teardown(teardown)
+
+  let output = ''
+  let outputAfterType = ''
+  let captureAfterType = false
+  let rlInstance = null
+  const mockCreateInterface = () => {
+    rlInstance = {
+    _prompt: '',
+    _line: '',
+    _cursor: 0,
+    _columns: 80,
+    _previousRows: 0,
+    write: (str) => {
+      output += str
+      if (captureAfterType) outputAfterType += str
+    },
+    setPrompt: function (prompt) {
+      this._prompt = prompt
+    },
+    prompt: function () {},
+    once: (event, callback) => {
+      if (event === 'data') setTimeout(() => callback(Buffer.from('typed\n')), 10)
+    },
+    on: () => {},
+    off: () => {},
+    input: { setMode: () => {} },
+    close: () => {}
+    }
+    return rlInstance
+  }
+  const restoreReadLine = Helper.override('bare-readline', {
+    createInterface: mockCreateInterface
+  })
+  t.teardown(restoreReadLine)
+
+  const restoreTTY = Helper.override('bare-tty', {
+    isTTY: () => true,
+    WriteStream: class {
+      write = () => {}
+    },
+    ReadStream: class extends Readable {
+      setMode = () => {}
+    }
+  })
+  t.teardown(restoreTTY)
+
+  const { Interact, ansi } = require('..')
+  t.teardown(() => {
+    Helper.forget('..')
+  })
+
+  const interact = new Interact('', [
+    { name: 'app', prompt: 'Name', delim: ':', default: 'my-app' }
+  ])
+
+  await new Promise((resolve, reject) => {
+    const stream = interact.run()
+    stream.on('data', () => {})
+    stream.on('end', resolve)
+    stream.on('error', reject)
+    setTimeout(() => {
+      if (!rlInstance) return
+      rlInstance._line = 'x'
+      rlInstance._cursor = 1
+      captureAfterType = true
+      rlInstance.prompt()
+    }, 5)
+  })
+
+  t.ok(output.includes('Name: '), 'should print the prompt')
+  t.ok(output.includes(ansi.dim('(my-app)')), 'should render dimmed default placeholder')
+  t.ok(
+    !outputAfterType.includes(ansi.dim('(my-app)')),
+    'should hide placeholder after typing'
+  )
+})
+
 test('outputter - JSON mode', testOptions, async function (t) {
   t.plan(1)
 

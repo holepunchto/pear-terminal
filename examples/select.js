@@ -27,7 +27,4 @@ async function main() {
   print(`Config: ${JSON.stringify(selection.value)}`)
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exitCode = 1
-})
+main()

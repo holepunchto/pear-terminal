@@ -260,6 +260,9 @@ class Interact {
       const ix = Number(answer) || 0
       const selected = param.select[ix] ?? param.select[0]
       choice = selected.prompt ?? selected.name ?? String(ix)
+      if (selected.params === undefined) {
+        throw new Error(`Select option "${choice}" is missing params`)
+      }
       param.params = selected.params
       answer = param.params
       tag = 'select'

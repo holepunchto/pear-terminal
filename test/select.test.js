@@ -31,9 +31,9 @@ test('select - prompts with hints and numbered options', testOptions, async func
       prompt: 'Choose a theme',
       hint: 'Use number keys. Return to submit.',
       select: [
-        { prompt: 'Minimal', desc: 'No borders' },
-        { prompt: 'Bold', desc: 'Strong contrast' },
-        { prompt: 'Neon' }
+        { prompt: 'Minimal', desc: 'No borders', params: { value: 'minimal' } },
+        { prompt: 'Bold', desc: 'Strong contrast', params: { value: 'bold' } },
+        { prompt: 'Neon', params: { value: 'neon' } }
       ]
     }
   ])
@@ -53,4 +53,37 @@ test('select - prompts with hints and numbered options', testOptions, async func
   t.ok(tty.output.includes(`${ansi.dim('0)')} Minimal`), 'should print default option')
   t.ok(tty.output.includes(ansi.dim(' (default)')), 'should print default tag')
   t.ok(tty.output.includes(`${ansi.dim('1)')} Bold`), 'should print numbered options')
+})
+
+test('select - requires params', testOptions, async function (t) {
+  t.plan(1)
+
+  const teardown = Helper.rigPearGlobal()
+  t.teardown(teardown)
+
+  const restoreReadLine = Helper.stubReadlineInput('0\n')
+  t.teardown(restoreReadLine)
+
+  const { Interact } = require('..')
+  t.teardown(() => {
+    Helper.forget('..')
+  })
+
+  const interact = new Interact('', [
+    {
+      name: 'theme',
+      prompt: 'Choose a theme',
+      select: [{ prompt: 'Minimal' }]
+    }
+  ])
+
+  await new Promise((resolve, reject) => {
+    const stream = interact.run()
+    stream.on('data', () => {})
+    stream.on('end', () => reject(new Error('unexpected end')))
+    stream.on('error', (err) => {
+      t.ok(err.message.includes('missing params'), 'should reject missing params')
+      resolve()
+    })
+  })
 })

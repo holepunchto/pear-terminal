@@ -293,9 +293,9 @@ const outputter =
         })
       : null
     if (typeof opts === 'boolean') opts = { json: opts }
-    const { json = false, log, ignore = () => false } = opts
+    const { json = false, log, mod = () => {} } = opts
     const promise = opwait(stream, ({ tag, data }) => {
-      if (ignore(tag, data)) return
+      mod(tag, data)
       if (json) {
         const str = JSON.stringify({ cmd, tag, data })
         if (log) log(str)

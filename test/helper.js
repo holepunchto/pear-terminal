@@ -2,9 +2,11 @@
 global.Pear = null
 
 const { isWindows, isBare } = require('which-runtime')
+const process = require('process')
 const IPC = require('pear-ipc')
 const path = require('bare-path')
 const fs = require('bare-fs')
+const { Readable } = require('streamx')
 const { pathToFileURL } = require('url-file-url')
 
 const dirname = __dirname
@@ -55,6 +57,22 @@ class Helper {
       }
       program.argv.length = 0
       program.argv.push(...argv)
+      global.Pear = null
+    }
+  }
+
+  static rigPearGlobal() {
+    if (global.Pear !== null) {
+      console.error(global.Pear)
+      throw Error(`Prior Pear global not cleaned up: ${global.Pear}`)
+    }
+
+    class RigAPI {
+      static RTI = { checkout: { key: dirname, length: null, fork: null } }
+    }
+    global.Pear = new RigAPI()
+
+    return () => {
       global.Pear = null
     }
   }
@@ -159,6 +177,89 @@ class Helper {
     teardown(() => server.close())
     await server.ready()
     return server
+  }
+
+  static captureConsole() {
+    const originalConsoleLog = console.log
+    let output = ''
+    console.log = (str) => {
+      output += str + '\n'
+    }
+    return {
+      restore: () => {
+        console.log = originalConsoleLog
+      },
+      get output() {
+        return output
+      },
+      clear() {
+        output = ''
+      }
+    }
+  }
+
+  static stubTTY({ onWrite, isTTY = true } = {}) {
+    let output = ''
+    const restore = Helper.override('bare-tty', {
+      isTTY: () => isTTY,
+      WriteStream: class {
+        write = (str) => {
+          output += str
+          if (onWrite) onWrite(str)
+        }
+      },
+      ReadStream: class extends Readable {
+        setMode = () => {}
+      }
+    })
+
+    return {
+      restore,
+      get output() {
+        return output
+      },
+      clear() {
+        output = ''
+      }
+    }
+  }
+
+  static stubReadline(createInterface) {
+    return Helper.override('bare-readline', { createInterface })
+  }
+
+  static stubReadlineInput(data) {
+    const createInterface = () => ({
+      _prompt: '',
+      once: (event, callback) => {
+        if (event === 'data') {
+          setTimeout(() => callback(Buffer.from(data)), 10)
+        }
+      },
+      on: () => {},
+      off: () => {},
+      input: { setMode: () => {} },
+      close: () => {}
+    })
+    return Helper.override('bare-readline', { createInterface })
+  }
+
+  static captureExit() {
+    const originalExit = isBare ? Bare.exit : process.exit
+    let resolveExit
+    const exited = new Promise((resolve) => {
+      resolveExit = resolve
+    })
+    if (isBare) Bare.exit = () => resolveExit(true)
+    else process.exit = () => resolveExit(true)
+
+    return {
+      exited,
+      restore: () => {
+        if (isBare) Bare.exit = originalExit
+        else process.exit = originalExit
+      }
+    }
   }
 
   static override(moduleName, override) {

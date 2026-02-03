@@ -461,7 +461,13 @@ function indicator(value, type = 'success') {
   if (type === 'diff') {
     return value === 0 ? ansi.yellow('~') : value === 1 ? ansi.green('+') : ansi.red('-')
   }
-  return value < 0 ? ansi.cross + ' ' : value === 1 ? ansi.tick + ' ' : (value > 1 ? '' : ansi.gray('- '))
+  return value < 0
+    ? ansi.cross + ' '
+    : value === 1
+      ? ansi.tick + ' '
+      : value > 1
+        ? ''
+        : ansi.gray('- ')
 }
 
 const outputter =

@@ -475,13 +475,23 @@ const outputter =
   (opts, stream, info = {}, ipc) => {
     if (Array.isArray(stream)) stream = Readable.from(stream)
     const asTTY = opts.ctrlTTY ?? isTTY
-    if (asTTY) stdio.out.write(ansi.hideCursor())
-    const dereg = asTTY
-      ? gracedown(() => {
-          if (!isWindows) stdio.out.write('\x1B[1K\x1B[G' + statusFrag) // clear ^C
-          stdio.out.write(ansi.showCursor())
-        })
-      : null
+    let dereg = null
+    let cursorRestored = false
+    const restoreCursor = () => {
+      if (!asTTY || cursorRestored) return
+      cursorRestored = true
+      stdio.out.write(ansi.showCursor())
+      if (dereg) dereg(false)
+    }
+    if (asTTY) {
+      stdio.out.write(ansi.hideCursor())
+      dereg = gracedown(() => {
+        if (!isWindows) stdio.out.write('\x1B[1K\x1B[G' + statusFrag) // clear ^C
+        restoreCursor()
+      })
+      stream.once('end', restoreCursor)
+      stream.once('error', restoreCursor)
+    }
     if (typeof opts === 'boolean' || typeof opts === 'function') opts = { json: opts }
     const { json = false, log } = opts
     const promise = opwait(stream, ({ tag, data }) => {
@@ -519,10 +529,7 @@ const outputter =
           let msg = Array.isArray(message) ? message.join('\n') : message
           if (tag === 'final') {
             msg += '\n'
-            if (asTTY) {
-              stdio.out.write(ansi.showCursor())
-              dereg(false)
-            }
+            restoreCursor()
           }
 
           if (output === 'print') print(msg, success)

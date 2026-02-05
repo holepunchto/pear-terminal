@@ -119,6 +119,27 @@ test('outputter - JSON mode', testOptions, async function (t) {
   )
 })
 
+test('outputter - restores cursor on end without final tag', testOptions, async function (t) {
+  t.plan(2)
+
+  const teardown = Helper.rigPearGlobal()
+  t.teardown(teardown)
+
+  const tty = Helper.stubTTY()
+  t.teardown(tty.restore)
+
+  const { outputter, ansi } = require('..')
+  t.teardown(() => {
+    Helper.forget('..')
+  })
+
+  const outputterFn = outputter('test-cmd')
+  await outputterFn({ json: false }, [])
+
+  t.ok(tty.output.includes(ansi.hideCursor()), 'should hide cursor')
+  t.ok(tty.output.includes(ansi.showCursor()), 'should restore cursor on end')
+})
+
 test('outputter - JSON mode - with log', testOptions, async function (t) {
   t.plan(3)
 

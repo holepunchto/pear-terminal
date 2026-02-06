@@ -245,6 +245,13 @@ class Interact {
     const deflt = defaults[param.name] ?? param.default
     const selection = Array.isArray(param.select)
 
+    if (param.boolean) {
+      const base = param.name === field ? trail : trail.concat(param.name)
+      const answer = await this.#confirm(param)
+      out.push({ tag: 'confirm', data: { trail: base, name: param.name, answer } })
+      return true
+    }
+
     let answer = selection
       ? await this.#select(param.prompt, param.select, param.hint)
       : typeof param.params === 'string'
@@ -342,6 +349,18 @@ class Interact {
     const inputPromptStyled = ansi.dim('> ')
     const selectPrompt = `${header}\n${lines.join('\n')}\n${inputPrompt}`
     return (await this.#input(selectPrompt, null, inputPromptStyled)) || '0'
+  }
+
+  async #confirm(param) {
+    const deflt = param.default || false
+    const desc = param.description ? ansi.dim('  - ' + param.description) : ''
+    const yes = deflt ? 'YES' : 'yes'
+    const no = deflt ? 'no' : 'NO'
+    const header = `${ansi.yellow('?')} ${param.prompt}${desc} ${ansi.dim('(' + yes + '/' + no + ')')}`
+    const prompt = `${header}\n> `
+    const answer = (await this.#input(prompt, null, ansi.dim('> '))).trim()
+    if (answer.length === 0) return deflt
+    return /^y(es)?$/i.test(answer)
   }
 
   async #input(prompt, placeholder, promptStyled) {

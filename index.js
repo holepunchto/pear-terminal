@@ -212,8 +212,8 @@ class Interact {
   async _run(opts, out) {
     try {
       if (opts?.autosubmit) {
-        const res = this.#autosubmit()
-        out.push({ type: 'autosubmit', value: res })
+        this.#autosubmit(out)
+        out.push({ tag: 'final', data: { success: true } })
         out.push(null)
         return
       }
@@ -320,18 +320,18 @@ class Interact {
     return true
   }
 
-  #autosubmit() {
-    const fields = {}
-    const shave = {}
+  #autosubmit(out) {
     const defaults = this._defaults
     while (this._params.length) {
       const param = this._params.shift()
-      fields[param.name] = defaults[param.name] ?? param.default
-      if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')) {
-        shave[param.name] = param.shave
-      }
+      const answer = defaults[param.name] ?? param.default
+      const trail = [param.name]
+      const shave =
+        Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')
+          ? param.shave
+          : undefined
+      out.push({ tag: 'input', data: { trail, name: param.name, answer, shave } })
     }
-    return { fields, shave }
   }
 
   async #select(param) {

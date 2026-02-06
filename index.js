@@ -253,7 +253,7 @@ class Interact {
     }
 
     let answer = selection
-      ? await this.#select(param.prompt, param.select, param.hint)
+      ? await this.#select(param)
       : typeof param.params === 'string'
         ? ''
         : await this.#input(`${param.prompt}${param.delim || ':'} `, deflt ? `(${deflt})` : '')
@@ -334,10 +334,10 @@ class Interact {
     return { fields, shave }
   }
 
-  async #select(prompt, select, hint) {
-    const help = hint || 'Use number keys. Return to submit.'
-    const header = `${ansi.yellow('?')} ${prompt}${help ? ansi.dim('  - ' + help) : ''}`
-    const lines = select.map((item, index) => {
+  async #select(param) {
+    const help = param.hint || 'Use number keys. Return to submit.'
+    const header = `${ansi.yellow('?')} ${param.prompt}${help ? ansi.dim('  - ' + help) : ''}`
+    const lines = param.select.map((item, index) => {
       const label = item.prompt ?? item.name ?? String(index)
       const detail = item.detail ?? item.description ?? item.desc ?? item.hint ?? ''
       const detailText = detail ? ansi.dim(' - ' + detail) : ''

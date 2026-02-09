@@ -7,7 +7,10 @@ async function runTests() {
 
   test.pause()
 
-  await import('./index.test.js')
+  await import('./core.test.js')
+  await import('./input.test.js')
+  await import('./select.test.js')
+  await import('./confirm.test.js')
 
   test.resume()
 }

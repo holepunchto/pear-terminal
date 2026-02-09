@@ -1,9 +1,10 @@
 'use strict'
-
 const readline = require('bare-readline')
+const ansiEscapes = require('bare-ansi-escapes')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
 const os = require('bare-os')
+const Realm = require('bare-realm')
 const { Writable: BareWritable, Readable: BareReadable } = require('bare-stream')
 const { Writable, Readable } = require('streamx')
 const hypercoreid = require('hypercore-id-encoding')
@@ -17,6 +18,23 @@ const isTTY = tty.isTTY(0)
 
 function ERR_SIGINT(msg) {
   return new errors(msg, ERR_SIGINT)
+}
+
+function renderPrompt(rl, line, linePlain, cursor) {
+  const x = cursor % rl._columns
+  const y = (cursor - x) / rl._columns
+  const offsetX = cursor === linePlain.length ? 0 : 1
+  const rows = Math.floor((linePlain.length - offsetX) / rl._columns)
+  const offsetY = rows - y
+
+  if (rl._previousRows) rl.write(ansiEscapes.cursorUp(rl._previousRows))
+  rl.write(ansiEscapes.cursorPosition(0) + ansiEscapes.eraseDisplayEnd + line)
+
+  if (x === 0 && offsetX === 0) rl.write(readline.constants.EOL)
+  else if (offsetY) rl.write(ansiEscapes.cursorUp(offsetY))
+
+  rl.write(ansiEscapes.cursorPosition(x))
+  rl._previousRows = rows - offsetY
 }
 
 const pt = (arg) => arg
@@ -150,16 +168,21 @@ const stdio = new (class Stdio {
 class Interact {
   static rx =
     /[\x1B\x9B][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*|[a-zA-Z\d]+(?:;[-a-zA-Z\d/#&.:=?%@~_]*)*)?\x07)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g // eslint-disable-line no-control-regex
+
   constructor(header, params, opts = {}) {
     this._header = header
     this._params = params
     this._defaults = opts.defaults || {}
+    this._load =
+      opts.load ??
+      (() => {
+        throw new Error('provide a load function to load params strings')
+      })
 
     const mask = (data, cb) => {
       if (data.length > 4) {
-        // is full line
-        const prompt = this._rl._prompt
-        const regex = new RegExp(`(${prompt})([\\x20-\\x7E]+)`, 'g') // match printable chars after prompt
+        const prompt = this._prompt
+        const regex = new RegExp(`(${prompt})([\\x20-\\x7E]+)`, 'g')
         const masked = data
           .toString()
           .replace(regex, (_, prompt, pwd) => prompt + '*'.repeat(pwd.length))
@@ -175,77 +198,257 @@ class Interact {
       output: opts.masked ? new Writable({ write: mask }) : stdio.out
     })
     this._rl.on('close', () => {
-      console.log() // newline
+      console.log()
     })
     stdio.in?.setMode?.(tty.constants.MODE_RAW)
   }
 
-  async run(opts) {
+  run(opts) {
+    const out = new Readable()
+    this._run(opts, out)
+    return out
+  }
+
+  async _run(opts, out) {
     try {
-      return await this.#run(opts)
+      if (opts?.autosubmit) {
+        this.#autosubmit(out)
+        out.push({ tag: 'final', data: { success: true } })
+        out.push(null)
+        return
+      }
+
+      stdio.out.write(this._header)
+      await this._loop(this._params, out, [], null)
+      out.push({ tag: 'final', data: { success: true } })
+      out.push(null)
+    } catch (err) {
+      out.destroy(err)
     } finally {
       if (stdio.inAttached) stdio.in.destroy()
     }
   }
 
-  async #run(opts = {}) {
-    if (opts.autosubmit) return this.#autosubmit()
-    stdio.out.write(this._header)
-    const fields = {}
-    const shave = {}
-    const defaults = this._defaults
-    while (this._params.length) {
-      const param = this._params.shift()
+  async _loop(params, out, trail, field) {
+    params = Array.isArray(params) ? params : [params]
+    while (params.length) {
+      const param = params.shift()
       while (true) {
-        const deflt = defaults[param.name] ?? param.default
-        let answer = await this.#input(
-          `${param.prompt}${param.delim || ':'}${deflt && ' (' + deflt + ')'} `
-        )
-        if (answer.length === 0) answer = defaults[param.name] ?? deflt
-        if (!param.validation || (await param.validation(answer))) {
-          if (typeof answer === 'string') answer = answer.replace(this.constructor.rx, '')
-          fields[param.name] = answer
-          if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')) {
-            shave[param.name] = param.shave
-          }
-          break
-        } else {
-          stdio.out.write(param.msg + '\n')
-        }
+        const done = await this._next(param, out, trail, field)
+        if (done) break
       }
     }
-    return { fields, shave }
   }
 
-  #autosubmit() {
-    const fields = {}
-    const shave = {}
+  async _next(param, out, trail, field) {
+    const defaults = this._defaults
+    const deflt = defaults[param.name] ?? param.default
+    const selection = Array.isArray(param.select)
+
+    if (param.boolean) {
+      const base = param.name === field ? trail : trail.concat(param.name)
+      const answer = await this.#confirm(param)
+      out.push({ tag: 'confirm', data: { trail: base, name: param.name, answer } })
+      return true
+    }
+
+    let answer = selection
+      ? await this.#select(param)
+      : typeof param.params === 'string'
+        ? ''
+        : await this.#input(`${param.prompt}${param.delim || ':'} `, deflt ? `${deflt}` : '')
+
+    if (answer.length === 0) answer = defaults[param.name] ?? deflt
+
+    let choice = null
+    let tag = 'input'
+
+    if (selection) {
+      const ix = Number(answer) || 0
+      const selected = param.select[ix] ?? param.select[0]
+      choice = selected.prompt ?? selected.name ?? String(ix)
+      if (selected.params === undefined) {
+        throw new Error(`Select option "${choice}" is missing params`)
+      }
+      param.params = selected.params
+      answer = param.params
+      tag = 'select'
+    } else if (typeof param.params === 'string') {
+      answer = param.params
+    }
+
+    if (typeof param.validation === 'string') {
+      const realm = new Realm()
+      param.validation = realm.evaluate(param.validation)
+    }
+
+    if (param.validation && !(await param.validation(answer))) {
+      stdio.out.write(param.msg + '\n')
+      return false
+    }
+
+    if (typeof answer === 'string') answer = answer.replace(this.constructor.rx, '')
+
+    const base = param.name === field ? trail : trail.concat(param.name)
+    const isGroup = typeof param.params === 'string'
+
+    if (selection) {
+      const selected = base.concat(choice)
+      out.push({ tag, data: { trail: selected, name: choice, answer } })
+      if (isGroup) {
+        out.push({ tag: 'enter', data: { trail: selected, name: param.name, answer: answer } })
+        param.params = await this._load(param.params)
+        await this._loop(param.params, out, selected, choice)
+        out.push({ tag: 'exit', data: { trail: selected, name: param.name, answer: answer } })
+      }
+      return true
+    }
+
+    if (isGroup) {
+      out.push({ tag: 'enter', data: { trail: base, name: param.name, answer } })
+      param.params = await this._load(param.params)
+      await this._loop(param.params, out, base, param.name)
+      out.push({ tag: 'exit', data: { trail: base, name: param.name, answer } })
+      return true
+    }
+
+    const shave =
+      Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')
+        ? param.shave
+        : undefined
+    out.push({ tag, data: { trail: base, name: param.name, answer, shave } })
+    return true
+  }
+
+  #autosubmit(out) {
     const defaults = this._defaults
     while (this._params.length) {
       const param = this._params.shift()
-      fields[param.name] = defaults[param.name] ?? param.default
-      if (Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')) {
-        shave[param.name] = param.shave
-      }
+      const answer = defaults[param.name] ?? param.default
+      const trail = [param.name]
+      const shave =
+        Array.isArray(param.shave) && param.shave.every((ix) => typeof ix === 'number')
+          ? param.shave
+          : undefined
+      out.push({ tag: 'input', data: { trail, name: param.name, answer, shave } })
     }
-    return { fields, shave }
   }
 
-  async #input(prompt) {
-    stdio.out.write(prompt)
-    this._rl._prompt = prompt
-    const answer = await new Promise((resolve, reject) => {
-      this._rl.once('data', (data) => {
-        resolve(data)
-      })
-      stdio.in?.once('data', (data) => {
-        if (data.length === 1 && data[0] === 3) {
+  async #select(param) {
+    const help = param.hint || 'Use number keys. Return to submit.'
+    const header = `${ansi.yellow('?')} ${param.prompt}${help ? ansi.dim('  - ' + help) : ''}`
+    const lines = param.select.map((item, index) => {
+      const label = item.prompt ?? item.name ?? String(index)
+      const detail = item.detail ?? item.description ?? item.desc ?? item.hint ?? ''
+      const detailText = detail ? ansi.dim(' - ' + detail) : ''
+      const isDefault = index === 0
+      const defaultTag = isDefault ? ansi.dim(' (default)') : ''
+      return `  ${ansi.dim(index + ')')} ${label}${detailText}${defaultTag}`
+    })
+    const inputPrompt = '> '
+    const inputPromptStyled = ansi.dim('> ')
+    const selectPrompt = `${header}\n${lines.join('\n')}\n${inputPrompt}`
+    return (await this.#input(selectPrompt, null, inputPromptStyled)) || '0'
+  }
+
+  async #confirm(param) {
+    const deflt = param.default || false
+    const desc = param.description ? ansi.dim('  - ' + param.description) : ''
+    const yes = deflt ? 'YES' : 'yes'
+    const no = deflt ? 'no' : 'NO'
+    const header = `${ansi.yellow('?')} ${param.prompt}${desc} ${ansi.dim('(' + yes + '/' + no + ')')}`
+    const prompt = `${header}\n> `
+    const answer = (await this.#input(prompt, null, ansi.dim('> '))).trim()
+    if (answer.length === 0) return deflt
+    return /^y(es)?$/i.test(answer)
+  }
+
+  async #input(prompt, placeholder, promptStyled) {
+    const lastNewline = prompt.lastIndexOf('\n')
+    if (lastNewline !== -1) {
+      stdio.out.write(prompt.slice(0, lastNewline + 1))
+      prompt = prompt.slice(lastNewline + 1)
+    }
+    this._prompt = prompt
+    if (this._rl.setPrompt) this._rl.setPrompt(prompt)
+    if (promptStyled || placeholder) this.#enablePromptRender(promptStyled, placeholder)
+    if (this._rl.prompt) this._rl.prompt()
+    else stdio.out.write(prompt)
+    try {
+      const answer = await new Promise((resolve, reject) => {
+        let done = false
+        const isSigint = (data) => {
+          if (!data || data.length === 0) return false
+          return data.length === 1 ? data[0] === 3 : data.includes(3)
+        }
+        const detachSigint = () => {
+          const input = stdio.in
+          if (!input) return
+          if (input.off) input.off('data', onSigint)
+          else if (input.removeListener) input.removeListener('data', onSigint)
+        }
+        const onSigint = (data) => {
+          if (done || !isSigint(data)) return
+          done = true
+          detachSigint()
           reject(ERR_SIGINT('^C exit'))
           os.kill(Pear.pid, 'SIGINT')
         }
+
+        this._rl.once('data', (data) => {
+          if (done) return
+          done = true
+          detachSigint()
+          resolve(data)
+        })
+        stdio.in?.on('data', onSigint)
       })
-    })
-    return answer.toString().trim() // remove return char
+      return answer.toString().trim()
+    } finally {
+      this.#disablePromptRender()
+    }
+  }
+
+  #ensurePromptPatch() {
+    const rl = this._rl
+    if (!rl.prompt) return
+    if (!rl._promptPatched) {
+      rl._promptPatched = true
+      rl._origPrompt = rl.prompt.bind(rl)
+      function promptWithPlaceholder() {
+        const hasPlaceholder = !!this._placeholder
+        const hasPromptStyle = !!this._promptStyled
+        if (!hasPlaceholder && !hasPromptStyle) return this._origPrompt()
+
+        const showPlaceholder = hasPlaceholder && this._line.length === 0
+        const placeholderText = showPlaceholder ? this._placeholder.plain : ''
+        const placeholderStyled = showPlaceholder ? this._placeholder.styled : ''
+        const promptPlain = this._prompt
+        const promptOut = this._promptStyled ?? promptPlain
+        const line = promptOut + placeholderStyled + this._line
+        const linePlain = promptPlain + placeholderText + this._line
+        const cursor = promptPlain.length + this._cursor
+
+        renderPrompt(this, line, linePlain, cursor)
+      }
+      rl.prompt = promptWithPlaceholder
+    }
+  }
+
+  #enablePromptRender(promptStyled, placeholder) {
+    this.#ensurePromptPatch()
+    this._rl._promptStyled = promptStyled ?? null
+    if (placeholder) {
+      this._rl._placeholder = { plain: placeholder, styled: ansi.dim(placeholder) }
+    } else {
+      this._rl._placeholder = null
+    }
+  }
+
+  #disablePromptRender() {
+    if (!this._rl) return
+    this._rl._placeholder = null
+    this._rl._promptStyled = null
   }
 }
 
@@ -277,7 +480,13 @@ function indicator(value, type = 'success') {
   if (type === 'diff') {
     return value === 0 ? ansi.yellow('~') : value === 1 ? ansi.green('+') : ansi.red('-')
   }
-  return value < 0 ? ansi.cross + ' ' : value === 1 ? ansi.tick + ' ' : (value > 1 ? '' : ansi.gray('- '))
+  return value < 0
+    ? ansi.cross + ' '
+    : value === 1
+      ? ansi.tick + ' '
+      : value > 1
+        ? ''
+        : ansi.gray('- ')
 }
 
 const outputter =
@@ -285,13 +494,23 @@ const outputter =
   (opts, stream, info = {}, ipc) => {
     if (Array.isArray(stream)) stream = Readable.from(stream)
     const asTTY = opts.ctrlTTY ?? isTTY
-    if (asTTY) stdio.out.write(ansi.hideCursor())
-    const dereg = asTTY
-      ? gracedown(() => {
-          if (!isWindows) stdio.out.write('\x1B[1K\x1B[G' + statusFrag) // clear ^C
-          stdio.out.write(ansi.showCursor())
-        })
-      : null
+    let dereg = null
+    let cursorRestored = false
+    const restoreCursor = () => {
+      if (!asTTY || cursorRestored) return
+      cursorRestored = true
+      stdio.out.write(ansi.showCursor())
+      if (dereg) dereg(false)
+    }
+    if (asTTY) {
+      stdio.out.write(ansi.hideCursor())
+      dereg = gracedown(() => {
+        if (!isWindows) stdio.out.write('\x1B[1K\x1B[G' + statusFrag) // clear ^C
+        restoreCursor()
+      })
+      stream.once('end', restoreCursor)
+      stream.once('error', restoreCursor)
+    }
     if (typeof opts === 'boolean' || typeof opts === 'function') opts = { json: opts }
     const { json = false, log } = opts
     const promise = opwait(stream, ({ tag, data }) => {
@@ -329,10 +548,7 @@ const outputter =
           let msg = Array.isArray(message) ? message.join('\n') : message
           if (tag === 'final') {
             msg += '\n'
-            if (asTTY) {
-              stdio.out.write(ansi.showCursor())
-              dereg(false)
-            }
+            restoreCursor()
           }
 
           if (output === 'print') print(msg, success)
@@ -404,7 +620,7 @@ async function trust(ipc, key, cmd) {
     }
   ])
 
-  await interact.run()
+  await opwait(interact.run())
   await ipc.permit({ key })
   print('\n' + ansi.tick + ' pear://' + z32 + ' is now trusted\n')
   print(act[cmd] + '\n')
@@ -446,7 +662,7 @@ async function password(ipc, key, cmd) {
     dialog,
     [
       {
-        name: 'value',
+        name: 'password',
         default: '',
         prompt: ask,
         delim,
@@ -456,9 +672,12 @@ async function password(ipc, key, cmd) {
     ],
     { masked: true }
   )
-  const { fields } = await interact.run()
+  let password = null
+  await opwait(interact.run(), ({ tag, data }) => {
+    if (tag === 'input' && data.name === 'password') password = data.answer
+  })
   print(`\n${ansi.key} Hashing password...`)
-  await ipc.permit({ key, password: fields.value })
+  await ipc.permit({ key, password })
   print('\n' + ansi.tick + ' ' + message[cmd] + '\n')
   await ipc.close()
   Bare.exit()
@@ -476,7 +695,7 @@ function permit(ipc, info, cmd) {
 async function confirm(dialog, ask, delim, validation, msg) {
   const interact = new Interact(dialog, [
     {
-      name: 'value',
+      name: 'confirm',
       default: '',
       prompt: ask,
       delim,
@@ -484,7 +703,7 @@ async function confirm(dialog, ask, delim, validation, msg) {
       msg
     }
   ])
-  await interact.run()
+  await opwait(interact.run())
 }
 
 function explain(bail = {}) {

@@ -256,7 +256,7 @@ class Interact {
       ? await this.#select(param)
       : typeof param.params === 'string'
         ? ''
-        : await this.#input(`${param.prompt}${param.delim || ':'} `, deflt ? `(${deflt})` : '')
+        : await this.#input(`${param.prompt}${param.delim || ':'} `, deflt ? `${deflt}` : '')
 
     if (answer.length === 0) answer = defaults[param.name] ?? deflt
 

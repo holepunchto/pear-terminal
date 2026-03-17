@@ -1,5 +1,4 @@
 'use strict'
-
 const readline = require('bare-readline')
 const tty = require('bare-tty')
 const fs = require('bare-fs')
@@ -277,7 +276,13 @@ function indicator(value, type = 'success') {
   if (type === 'diff') {
     return value === 0 ? ansi.yellow('~') : value === 1 ? ansi.green('+') : ansi.red('-')
   }
-  return value < 0 ? ansi.cross + ' ' : value === 1 ? ansi.tick + ' ' : (value > 1 ? '' : ansi.gray('- '))
+  return value < 0
+    ? ansi.cross + ' '
+    : value === 1
+      ? ansi.tick + ' '
+      : value > 1
+        ? ''
+        : ansi.gray('- ')
 }
 
 const outputter =
@@ -412,7 +417,7 @@ async function trust(ipc, key, cmd) {
   Bare.exit()
 }
 
-async function password(ipc, key, cmd) {
+async function passperm(ipc, key, cmd) {
   const z32 = hypercoreid.normalize(key)
 
   const explain = {
@@ -467,7 +472,7 @@ async function password(ipc, key, cmd) {
 function permit(ipc, info, cmd) {
   const key = info.key
   if (info.encrypted) {
-    return password(ipc, key, cmd)
+    return passperm(ipc, key, cmd)
   } else {
     return trust(ipc, key, cmd)
   }
@@ -530,9 +535,36 @@ function explain(bail = {}) {
   print('\n' + bail.command.usage())
 }
 
+function password(prompt = 'Password: ') {
+  return new Promise((resolve) => {
+    const stdin = new tty.ReadStream(0)
+    const stdout = new tty.WriteStream(1)
+    let str = ''
+
+    stdin.setRawMode(true)
+    stdout.write(prompt)
+
+    stdin.on('data', (chunk) => {
+      const c = chunk[0]
+      if (c === 3) {
+        stdout.write('^C\n')
+        process.exit(130)
+      } else if (c === 13 || c === 10) {
+        stdin.setRawMode(false)
+        stdin.destroy()
+        stdout.write('\n')
+        return resolve(str)
+      } else if (c === 127 || c < 32) return
+      str += String.fromCharCode(c)
+      stdout.write('*')
+    })
+  })
+}
+
 module.exports = {
   explain,
   usage,
+  password,
   permit,
   stdio,
   ansi,

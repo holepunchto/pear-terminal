@@ -333,7 +333,7 @@ const outputter =
           }
           let msg = Array.isArray(message) ? message.join('\n') : message
           if (tag === 'final') {
-            msg += '\n'
+            if (!result.nonl) msg += '\n'
             if (asTTY) {
               stdio.out.write(ansi.showCursor())
               dereg(false)
@@ -492,49 +492,7 @@ async function confirm(dialog, ask, delim, validation, msg) {
   await interact.run()
 }
 
-function explain(bail = {}) {
-  if (!bail.reason && bail.err) {
-    const known = errors.known()
-    if (known.includes(bail.err.code) === false) {
-      print(
-        errors.ERR_UNKNOWN(
-          'Unknown [ code: ' + (bail.err.code || '(none)') + ' ] ' + bail.err.stack
-        ),
-        false
-      )
-      Bare.exit(1)
-    }
-  }
-  const messageUsage = (bail) => bail.err.info?.message ?? bail.err.message
-  const messageOnly = (bail) => bail.err.message
-  const opFail = (cmd) => cmd.err.info.message
-  const codemap = new Map([
-    ['UNKNOWN_FLAG', (bail) => 'Unrecognized Flag: --' + bail.flag.name],
-    [
-      'UNKNOWN_ARG',
-      (bail) => 'Unrecognized Argument at index ' + bail.arg.index + ' with value ' + bail.arg.value
-    ],
-    ['MISSING_ARG', (bail) => bail.arg.value],
-    ['INVALID', messageUsage],
-    ['ERR_INVALID_INPUT', messageUsage],
-    ['ERR_INVALID_CONFIG', messageUsage],
-    ['ERR_LEGACY', messageOnly],
-    ['ERR_INVALID_TEMPLATE', messageOnly],
-    ['ERR_DIR_NONEMPTY', messageOnly],
-    ['ERR_OPERATION_FAILED', opFail]
-  ])
-  const nouse = [messageOnly, opFail]
-  const code = bail?.err?.info?.code ?? (codemap.has(bail.err?.code) ? bail.err.code : bail.reason)
-  const ref = codemap.get(code)
-  const reason = codemap.has(code) ? (codemap.get(code)(bail) ?? bail.reason) : bail.reason
-  Bare.exitCode = 1
 
-  print(reason, false)
-
-  if (nouse.some((fn) => fn === ref) || codemap.has(code) === false) return
-
-  print('\n' + bail.command.usage())
-}
 
 function password(prompt = 'Password: ') {
   return new Promise((resolve) => {
@@ -563,7 +521,6 @@ function password(prompt = 'Password: ') {
 }
 
 module.exports = {
-  explain,
   usage,
   password,
   permit,

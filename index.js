@@ -507,7 +507,7 @@ function password(prompt = 'Password: ') {
       const c = chunk[0]
       if (c === 3) {
         stdout.write('^C\n')
-        process.exit(130)
+        Bare.exit(130)
       } else if (c === 13 || c === 10) {
         stdin.setRawMode(false)
         stdin.destroy()
